@@ -1,12 +1,12 @@
 package proc
 
-// MultiError is a wrap for multiple other errors.
-type MultiError struct {
+// MultiErrors is a wrap for multiple other errors.
+type MultiErrors struct {
 	es []error
 }
 
 // Error concats all inner errors into a single string.
-func (e *MultiError) Error() string {
+func (e *MultiErrors) Error() string {
 	if e == nil {
 		return "<nil>"
 	}

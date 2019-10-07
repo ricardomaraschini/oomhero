@@ -36,12 +36,7 @@ func LimitForProc(proc *os.Process) (uint64, error) {
 		proc.Pid,
 		limitSuffixPath,
 	)
-	limitAsB, err := ioutil.ReadFile(limitFile)
-	if err != nil {
-		return 0, err
-	}
-	limitAsStr := strings.TrimSuffix(string(limitAsB), "\n")
-	return strconv.ParseUint(limitAsStr, 10, 64)
+	return readUint64FromFile(limitFile)
 }
 
 // UsageForProc returns the amount of memory currently in use within the namespace
@@ -52,10 +47,14 @@ func UsageForProc(proc *os.Process) (uint64, error) {
 		proc.Pid,
 		usageSuffixPath,
 	)
-	usageAsB, err := ioutil.ReadFile(usageFile)
+	return readUint64FromFile(usageFile)
+}
+
+func readUint64FromFile(fpath string) (uint64, error) {
+	contentAsB, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return 0, err
 	}
-	usageAsStr := strings.TrimSuffix(string(usageAsB), "\n")
-	return strconv.ParseUint(usageAsStr, 10, 64)
+	contentAsStr := strings.TrimSuffix(string(contentAsB), "\n")
+	return strconv.ParseUint(contentAsStr, 10, 64)
 }

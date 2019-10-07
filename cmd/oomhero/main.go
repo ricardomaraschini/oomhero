@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"time"
@@ -10,11 +11,15 @@ import (
 )
 
 var (
-	warning  uint64 = 80
-	critical uint64 = 90
+	warning  *uint64
+	critical *uint64
 )
 
 func main() {
+	warning = flag.Uint64("warning", 80, "Warning threshold in %")
+	critical = flag.Uint64("critical", 90, "Critical threshold in %")
+	flag.Parse()
+
 	for range time.NewTicker(time.Second).C {
 		ps, err := proc.Others()
 		if err != nil {
@@ -27,8 +32,8 @@ func main() {
 		for _, p := range ps {
 			limit, usage, err := mem.LimitAndUsageForProc(p)
 			if err != nil {
-				// if there is no limit or we can't read it we
-				// just move on to the next process.
+				// if there is no limit or we can't read it due
+				// to permissions move on to the next process.
 				if os.IsNotExist(err) || os.IsPermission(err) {
 					continue
 				}
@@ -38,11 +43,11 @@ func main() {
 
 			pct := (usage * 100) / limit
 			log.Printf("mem usage on %d cgroup: %d%%", p.Pid, pct)
-			if pct < warning {
+			if pct < *warning {
 				continue
 			}
 
-			if pct < critical {
+			if pct < *critical {
 				warn = append(warn, p)
 				continue
 			}
