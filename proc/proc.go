@@ -31,8 +31,8 @@ func CmdLine(proc *os.Process) (string, error) {
 	return cmdAsStr, nil
 }
 
-// Others retun a list of all other ps. We do not return the current
-// process information.
+// Others return a list of all other processes running on the system, excluding
+// the current one.
 func Others() ([]*os.Process, error) {
 	files, err := ioutil.ReadDir("/proc")
 	if err != nil {
@@ -76,10 +76,10 @@ func Critical(ps []*os.Process) error {
 }
 
 func sendSignal(sig syscall.Signal, ps []*os.Process) error {
-	merrs := &MultiError{}
+	merrs := &MultiErrors{}
 	for _, p := range ps {
-		log.Printf("signal %d with %q\n", p.Pid, sig.String())
-		if err := p.Signal(syscall.SIGUSR1); err != nil {
+		log.Printf("signaling %d with %q\n", p.Pid, sig.String())
+		if err := p.Signal(sig); err != nil {
 			merrs.es = append(merrs.es, err)
 		}
 	}
