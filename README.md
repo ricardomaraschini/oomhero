@@ -3,13 +3,14 @@
 OOMHero is a sidecar that helps you to keep track of your containers memory
 usage. By implementing it two signals are going to be send to your container
 as the memory usage grows: a _warning_ and a _critical_ signals. By leveraging
-these signals you might be able to defeat the deadly `OOMKill`.
+these signals you might be able to defeat the deadly `OOMKiller`.
 
 ### How it works
 
 This sidecar will send your container two signals: when memory usage crosses
-so called _warning_(SIGUSR1) and _critical_(SIGUSR2) thresholds. Your application
-therefore must be able to deal with these signas by implementing signal handlers.
+so called _warning_(**SIGUSR1**) and _critical_(**SIGUSR2**) thresholds. Your 
+application therefore must be able to deal with these signals by implementing
+signal handlers.
 
 You an see [here](https://github.com/ricardomaraschini/oomhero/blob/master/cmd/bloat/main.go)
 an example of how to capture the signals in Go.
