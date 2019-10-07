@@ -62,9 +62,9 @@ and signals being sent by inspecting all pod logs.
 
 ```bash
 $ # for bloat container log
-$ oc logs -f oomhero --container bloat
+$ kubectl logs -f oomhero --container bloat
 $ # for oomhero container log
-$ oc logs -f oomhero --container oomhero 
+$ kubectl logs -f oomhero --container oomhero 
 ```
 
 ### Help needed
