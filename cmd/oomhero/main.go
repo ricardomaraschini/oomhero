@@ -1,9 +1,9 @@
 package main
 
 import (
-	"flag"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"oomhero/mem"
@@ -11,14 +11,14 @@ import (
 )
 
 var (
-	warning  *uint64
-	critical *uint64
+	warning  uint64 = 75
+	critical uint64 = 90
 )
 
 func main() {
-	warning = flag.Uint64("warning", 80, "Warning threshold in %")
-	critical = flag.Uint64("critical", 90, "Critical threshold in %")
-	flag.Parse()
+	parseEnv()
+	log.Printf("warning set to %d%%", warning)
+	log.Printf("critical set to %d%%", critical)
 
 	for range time.NewTicker(time.Second).C {
 		ps, err := proc.Others()
@@ -42,17 +42,19 @@ func main() {
 			}
 
 			pct := (usage * 100) / limit
-			log.Printf("mem usage on %d cgroup: %d%%", p.Pid, pct)
-			if pct < *warning {
-				continue
-			}
+			log.Printf(
+				"memory usage on pid %d's cgroup: %d%%",
+				p.Pid, pct,
+			)
 
-			if pct < *critical {
+			switch {
+			case pct < warning:
+				continue
+			case pct < critical:
 				warn = append(warn, p)
-				continue
+			default:
+				crit = append(crit, p)
 			}
-
-			crit = append(crit, p)
 		}
 
 		if len(warn) > 0 {
@@ -65,6 +67,30 @@ func main() {
 			if err := proc.Critical(crit); err != nil {
 				log.Printf("error signaling critical: %s", err)
 			}
+		}
+	}
+}
+
+func parseEnv() {
+	warnAsString := os.Getenv("WARNING")
+	if warnAsString != "" {
+		tmp, err := strconv.ParseUint(warnAsString, 10, 64)
+		if err != nil {
+			log.Printf("error parsing %s as warning", warnAsString)
+			log.Printf("using default(%d%%) instead", warning)
+		} else {
+			warning = tmp
+		}
+	}
+
+	critAsString := os.Getenv("CRITICAL")
+	if critAsString != "" {
+		tmp, err := strconv.ParseUint(critAsString, 10, 64)
+		if err != nil {
+			log.Printf("error parsing %s as critical", critAsString)
+			log.Printf("using default(%d%%) instead", critical)
+		} else {
+			critical = tmp
 		}
 	}
 }
