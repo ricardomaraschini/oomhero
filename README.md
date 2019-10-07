@@ -19,7 +19,7 @@ configured to send a `SIGUSR1` when `bloat` reaches 65% and a `SIGUSR2` on 90%.
 The only pre-req here is that both containers share the same process namespace,
 hence `shareProcessNamespace` is set to `true`.
 
-```
+```yaml
 apiVersion: v1
 kind: Pod
 metadata:
@@ -59,7 +59,7 @@ and signals being sent by inspecting all pod logs.
 ### Help needed
 
 [Official documentation](https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/)
-seems to state that `SYS_PTRACE` capability is mandatory when signalling between
+seems to state that `SYS_PTRACE` capability is mandatory when signaling between
 containers on the same Pod. I could not validate if this is true as it works
 without it on my K8S cluster. If to make it work you had to add this capability
 please let me know.
