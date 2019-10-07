@@ -1,3 +1,5 @@
+![OOMHero](https://github.com/ricardomaraschini/oomhero/raw/master/assets/logo.png)
+
 # OOMHero
 
 OOMHero is a sidecar that helps you to keep track of your containers memory
