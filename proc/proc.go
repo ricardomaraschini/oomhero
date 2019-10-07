@@ -3,8 +3,10 @@ package proc
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -17,6 +19,17 @@ var (
 	// is considered a Critical threshold.
 	CriticalSignal = syscall.SIGUSR2
 )
+
+// CmdLine returns the command line for proc.
+func CmdLine(proc *os.Process) (string, error) {
+	cmdFile := fmt.Sprintf("/proc/%d/cmdline", proc.Pid)
+	cmdAsB, err := ioutil.ReadFile(cmdFile)
+	if err != nil {
+		return "", err
+	}
+	cmdAsStr := strings.TrimSuffix(string(cmdAsB), "\n")
+	return cmdAsStr, nil
+}
 
 // Others retun a list of all other ps. We do not return the current
 // process information.
@@ -49,10 +62,6 @@ func Others() ([]*os.Process, error) {
 		ps = append(ps, proccess)
 	}
 
-	if len(ps) == 0 {
-		return nil, fmt.Errorf("unable to find any process")
-	}
-
 	return ps, nil
 }
 
@@ -67,14 +76,15 @@ func Critical(ps []*os.Process) error {
 }
 
 func sendSignal(sig syscall.Signal, ps []*os.Process) error {
-	errs := &errors{}
+	merrs := &MultiError{}
 	for _, p := range ps {
+		log.Printf("signal %d with %q\n", p.Pid, sig.String())
 		if err := p.Signal(syscall.SIGUSR1); err != nil {
-			errs.append(err)
+			merrs.es = append(merrs.es, err)
 		}
 	}
-	if errs.len() == 0 {
+	if len(merrs.es) == 0 {
 		return nil
 	}
-	return errs
+	return merrs
 }

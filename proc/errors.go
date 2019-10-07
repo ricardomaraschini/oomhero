@@ -1,20 +1,18 @@
 package proc
 
-type errors struct {
-	errs []error
+// MultiError is a wrap for multiple other errors.
+type MultiError struct {
+	es []error
 }
 
-func (e *errors) append(err error) {
-	e.errs = append(e.errs, err)
-}
+// Error concats all inner errors into a single string.
+func (e *MultiError) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
 
-func (e *errors) len() int {
-	return len(e.errs)
-}
-
-func (e *errors) Error() string {
-	str := ""
-	for _, err := range e.errs {
+	var str string
+	for _, err := range e.es {
 		str += err.Error()
 	}
 	return str
