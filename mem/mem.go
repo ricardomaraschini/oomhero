@@ -1,19 +1,40 @@
 package mem
 
 import (
+	"fmt"
 	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 )
 
 var (
-	limitFile = "/sys/fs/cgroup/memory/memory.limit_in_bytes"
-	usageFile = "/sys/fs/cgroup/memory/memory.usage_in_bytes"
+	limitSuffix = "sys/fs/cgroup/memory/memory.limit_in_bytes"
+	usageSuffix = "sys/fs/cgroup/memory/memory.usage_in_bytes"
 )
 
-// Limit returns the max memory according to what is reported by process
-// memory cgroup.
-func Limit() (uint64, error) {
+// LimitAndUsage returns memory limit and usage for cgroup where proc runs.
+func LimitAndUsage(proc *os.Process) (uint64, uint64, error) {
+	limit, err := LimitForProc(proc)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	usage, err := UsageForProc(proc)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	return limit, usage, nil
+}
+
+// LimitForProc returns the max memory on proc cgroup.
+func LimitForProc(proc *os.Process) (uint64, error) {
+	limitFile := fmt.Sprintf(
+		"/proc/%d/root/%s",
+		proc.Pid,
+		limitSuffix,
+	)
 	limitAsB, err := ioutil.ReadFile(limitFile)
 	if err != nil {
 		return 0, err
@@ -22,9 +43,14 @@ func Limit() (uint64, error) {
 	return strconv.ParseUint(limitAsStr, 10, 64)
 }
 
-// Usage returns the amount of memory currently in usage as reported by
-// process memory cgroup.
-func Usage() (uint64, error) {
+// UsageForProc returns the amount of memory currently in use within the namespace
+// where proc lives.
+func UsageForProc(proc *os.Process) (uint64, error) {
+	usageFile := fmt.Sprintf(
+		"/proc/%d/root/%s",
+		proc.Pid,
+		usageSuffix,
+	)
 	usageAsB, err := ioutil.ReadFile(usageFile)
 	if err != nil {
 		return 0, err

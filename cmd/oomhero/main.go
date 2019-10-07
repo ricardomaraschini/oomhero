@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"time"
@@ -16,45 +15,56 @@ var (
 )
 
 func main() {
-	var limit uint64
-	var usage uint64
-	var pct uint64
-	var err error
-	var ps []*os.Process
-
-	if limit, err = mem.Limit(); err != nil {
-		log.Fatalf("error reading memory limit: %v", err)
-	}
-
 	for range time.NewTicker(time.Second).C {
-		if usage, err = mem.Usage(); err != nil {
-			log.Printf("error reading memory usage: %v", err)
-			continue
-		}
-
-		pct = (usage * 100) / limit
-		if pct < warning {
-			log.Printf("current usage: %d%%", pct)
-			continue
-		}
-
-		ps, err = proc.Others()
+		ps, err := proc.Others()
 		if err != nil {
 			log.Printf("error listing procs: %v", err)
 			continue
 		}
 
-		if pct < critical {
-			log.Printf("mem usage: %d%%, sending warning", pct)
-			if err = proc.Warning(ps); err != nil {
-				log.Printf("error signaling: %v", err)
+		warn := make([]*os.Process, 0)
+		crit := make([]*os.Process, 0)
+		for _, p := range ps {
+			limit, usage, err := mem.LimitAndUsage(p)
+			if err != nil {
+				// if there is no limit or we can't read it we
+				// just move on to the next process.
+				if os.IsNotExist(err) || os.IsPermission(err) {
+					continue
+				}
+				log.Printf("error reading mem: %s", err)
+				continue
 			}
-			continue
+
+			cmdline, err := proc.CmdLine(p)
+			if err != nil {
+				cmdline = "unknown"
+			}
+
+			pct := (usage * 100) / limit
+			log.Printf("mem usage on %q cgroup: %d%%", cmdline, pct)
+			if pct < warning {
+				continue
+			}
+
+			if pct < critical {
+				warn = append(warn, p)
+				continue
+			}
+
+			crit = append(crit, p)
 		}
 
-		log.Printf("mem usage: %d%%, sending critical", pct)
-		if err = proc.Critical(ps); err != nil {
-			log.Printf("error signaling: %v", err)
+		if len(warn) > 0 {
+			if err := proc.Warning(warn); err != nil {
+				log.Printf("error signaling warning: %s", err)
+			}
+		}
+
+		if len(crit) > 0 {
+			if err := proc.Critical(crit); err != nil {
+				log.Printf("error signaling critical: %s", err)
+			}
 		}
 	}
 }
