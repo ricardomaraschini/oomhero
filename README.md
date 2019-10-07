@@ -23,6 +23,7 @@ configured to send a `SIGUSR1`(warning) when `bloat` reaches 65% and a `SIGUSR2`
 (critical) on 90%. The only pre-requisite is that both containers share the same
 process namespace, hence `shareProcessNamespace` is set to `true`.
 
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -34,12 +35,18 @@ spec:
     - name: bloat
       image: quay.io/rmarasch/bloat
       imagePullPolicy: Always
+      livenessProbe:
+        periodSeconds: 3
+        failureThreshold: 1
+        httpGet:
+          path: /healthz
+          port: 8080
       resources:
         requests:
-          memory: "64Mi"
+          memory: "256Mi"
           cpu: "250m"
         limits:
-          memory: "64Mi"
+          memory: "256Mi"
           cpu: "250m"
     - name: oomhero
       image: quay.io/rmarasch/oomhero

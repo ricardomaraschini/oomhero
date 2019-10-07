@@ -1,0 +1,8 @@
+FROM golang
+ADD . /src
+WORKDIR /src
+RUN GOOS=linux CGO_ENABLED=0 go build -ldflags="-w -s" -a -installsuffix cgo ./cmd/bloat
+
+FROM scratch 
+COPY --from=0 /src/bloat /
+ENTRYPOINT [ "/bloat" ]
