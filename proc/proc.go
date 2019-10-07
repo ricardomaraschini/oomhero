@@ -20,7 +20,7 @@ var (
 	CriticalSignal = syscall.SIGUSR2
 )
 
-// CmdLine returns the command line used for proc.
+// CmdLine returns the command line for proc.
 func CmdLine(proc *os.Process) (string, error) {
 	cmdFile := fmt.Sprintf("/proc/%d/cmdline", proc.Pid)
 	cmdAsB, err := ioutil.ReadFile(cmdFile)

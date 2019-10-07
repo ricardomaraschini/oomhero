@@ -9,12 +9,13 @@ import (
 )
 
 var (
-	limitSuffix = "sys/fs/cgroup/memory/memory.limit_in_bytes"
-	usageSuffix = "sys/fs/cgroup/memory/memory.usage_in_bytes"
+	limitSuffixPath = "sys/fs/cgroup/memory/memory.limit_in_bytes"
+	usageSuffixPath = "sys/fs/cgroup/memory/memory.usage_in_bytes"
 )
 
-// LimitAndUsage returns memory limit and usage for cgroup where proc runs.
-func LimitAndUsage(proc *os.Process) (uint64, uint64, error) {
+// LimitAndUsageForProc returns memory limit and usage for cgroup where proc
+// is running.
+func LimitAndUsageForProc(proc *os.Process) (uint64, uint64, error) {
 	limit, err := LimitForProc(proc)
 	if err != nil {
 		return 0, 0, err
@@ -33,7 +34,7 @@ func LimitForProc(proc *os.Process) (uint64, error) {
 	limitFile := fmt.Sprintf(
 		"/proc/%d/root/%s",
 		proc.Pid,
-		limitSuffix,
+		limitSuffixPath,
 	)
 	limitAsB, err := ioutil.ReadFile(limitFile)
 	if err != nil {
@@ -49,7 +50,7 @@ func UsageForProc(proc *os.Process) (uint64, error) {
 	usageFile := fmt.Sprintf(
 		"/proc/%d/root/%s",
 		proc.Pid,
-		usageSuffix,
+		usageSuffixPath,
 	)
 	usageAsB, err := ioutil.ReadFile(usageFile)
 	if err != nil {

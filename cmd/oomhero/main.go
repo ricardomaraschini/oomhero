@@ -25,7 +25,7 @@ func main() {
 		warn := make([]*os.Process, 0)
 		crit := make([]*os.Process, 0)
 		for _, p := range ps {
-			limit, usage, err := mem.LimitAndUsage(p)
+			limit, usage, err := mem.LimitAndUsageForProc(p)
 			if err != nil {
 				// if there is no limit or we can't read it we
 				// just move on to the next process.
@@ -36,13 +36,8 @@ func main() {
 				continue
 			}
 
-			cmdline, err := proc.CmdLine(p)
-			if err != nil {
-				cmdline = "unknown"
-			}
-
 			pct := (usage * 100) / limit
-			log.Printf("mem usage on %q cgroup: %d%%", cmdline, pct)
+			log.Printf("mem usage on %d cgroup: %d%%", p.Pid, pct)
 			if pct < warning {
 				continue
 			}
