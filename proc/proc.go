@@ -3,7 +3,6 @@ package proc
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -62,23 +61,26 @@ func Others() ([]*os.Process, error) {
 		ps = append(ps, proccess)
 	}
 
+	if len(ps) == 0 {
+		return nil, fmt.Errorf("unable to find any process")
+	}
+
 	return ps, nil
 }
 
-// Warning sends a warning signal to a list or processes.
-func Warning(ps []*os.Process) error {
+// SendWarning sends a warning signal to a list or processes.
+func SendWarning(ps []*os.Process) error {
 	return sendSignal(WarningSignal, ps)
 }
 
-// Critical sends a critical signal to a list or processes.
-func Critical(ps []*os.Process) error {
+// SendCritical sends a critical signal to a list or processes.
+func SendCritical(ps []*os.Process) error {
 	return sendSignal(CriticalSignal, ps)
 }
 
 func sendSignal(sig syscall.Signal, ps []*os.Process) error {
 	merrs := &MultiErrors{}
 	for _, p := range ps {
-		log.Printf("signaling %d with %q\n", p.Pid, sig.String())
 		if err := p.Signal(sig); err != nil {
 			merrs.es = append(merrs.es, err)
 		}

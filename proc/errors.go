@@ -1,5 +1,7 @@
 package proc
 
+import "strings"
+
 // MultiErrors is a wrap for multiple other errors.
 type MultiErrors struct {
 	es []error
@@ -11,9 +13,9 @@ func (e *MultiErrors) Error() string {
 		return "<nil>"
 	}
 
-	var str string
-	for _, err := range e.es {
-		str += err.Error()
+	strs := make([]string, len(e.es))
+	for i, err := range e.es {
+		strs[i] = err.Error()
 	}
-	return str
+	return strings.Join(strs, ",")
 }

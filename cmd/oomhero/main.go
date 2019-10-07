@@ -15,10 +15,31 @@ var (
 	critical uint64 = 90
 )
 
+// reads warning and critical from environment or use the default ones.
+func init() {
+	warning = envVarToUint64("WARNING", warning)
+	critical = envVarToUint64("CRITICAL", critical)
+}
+
+// envVarToUint64 converts the environment variable into a uint64, in case of
+// error provided default value(def) is returned instead.
+func envVarToUint64(name string, def uint64) uint64 {
+	asString := os.Getenv(name)
+	if asString == "" {
+		return def
+	}
+
+	val, err := strconv.ParseUint(asString, 10, 64)
+	if err != nil {
+		return def
+	}
+
+	return val
+}
+
 func main() {
-	parseEnv()
-	log.Printf("warning set to %d%%", warning)
-	log.Printf("critical set to %d%%", critical)
+	log.Printf("warning threshold set to %d%%", warning)
+	log.Printf("critical threshold set to %d%%", critical)
 
 	for range time.NewTicker(time.Second).C {
 		ps, err := proc.Others()
@@ -58,39 +79,15 @@ func main() {
 		}
 
 		if len(warn) > 0 {
-			if err := proc.Warning(warn); err != nil {
+			if err := proc.SendWarning(warn); err != nil {
 				log.Printf("error signaling warning: %s", err)
 			}
 		}
 
 		if len(crit) > 0 {
-			if err := proc.Critical(crit); err != nil {
+			if err := proc.SendCritical(crit); err != nil {
 				log.Printf("error signaling critical: %s", err)
 			}
-		}
-	}
-}
-
-func parseEnv() {
-	warnAsString := os.Getenv("WARNING")
-	if warnAsString != "" {
-		tmp, err := strconv.ParseUint(warnAsString, 10, 64)
-		if err != nil {
-			log.Printf("error parsing %s as warning", warnAsString)
-			log.Printf("using default(%d%%) instead", warning)
-		} else {
-			warning = tmp
-		}
-	}
-
-	critAsString := os.Getenv("CRITICAL")
-	if critAsString != "" {
-		tmp, err := strconv.ParseUint(critAsString, 10, 64)
-		if err != nil {
-			log.Printf("error parsing %s as critical", critAsString)
-			log.Printf("using default(%d%%) instead", critical)
-		} else {
-			critical = tmp
 		}
 	}
 }

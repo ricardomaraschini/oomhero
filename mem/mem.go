@@ -29,7 +29,7 @@ func LimitAndUsageForProc(proc *os.Process) (uint64, uint64, error) {
 	return limit, usage, nil
 }
 
-// LimitForProc returns the max memory on proc cgroup.
+// LimitForProc returns the max memory on process' cgroup.
 func LimitForProc(proc *os.Process) (uint64, error) {
 	limitFile := fmt.Sprintf(
 		"/proc/%d/root/%s",
