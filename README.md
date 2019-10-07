@@ -53,14 +53,14 @@ spec:
 
 Saving the above yaml into a file you just need to deploy it:
 
-```
+```bash
 $ kubectl create -f ./pod.yaml
 ```
 
 That will create a Pod with two containers, you may follow the memory consumption
 and signals being sent by inspecting all pod logs.
 
-```
+```bash
 $ # for bloat container log
 $ oc logs -f oomhero --container bloat
 $ # for oomhero container log
