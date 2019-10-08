@@ -17,8 +17,24 @@ var (
 
 // reads warning and critical from environment or use the default ones.
 func init() {
-	warning = envVarToUint64("WARNING", warning)
-	critical = envVarToUint64("CRITICAL", critical)
+	warningEnv := envVarToUint64("WARNING", warning)
+	criticalEnv := envVarToUint64("CRITICAL", critical)
+
+	// validate warning and critical https://github.com/ricardomaraschini/oomhero/issues/4
+	if warningEnv > 100 || criticalEnv > 100 {
+		log.Printf(
+			"warning and critical must be lower or equal to 100 .. using default values warning: %d critical: %d",
+			warning, critical)
+		return
+	} else if warningEnv > criticalEnv {
+		log.Printf(
+			"warning must be lower or equal to critical .. using default values warning: %d critical: %d",
+			warning, critical)
+		return
+	}
+
+	warning = warningEnv
+	critical = criticalEnv
 }
 
 // envVarToUint64 converts the environment variable into a uint64, in case of
