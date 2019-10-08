@@ -20,16 +20,11 @@ func init() {
 	warningEnv := envVarToUint64("WARNING", warning)
 	criticalEnv := envVarToUint64("CRITICAL", critical)
 
-	// validate warning and critical https://github.com/ricardomaraschini/oomhero/issues/4
 	if warningEnv > 100 || criticalEnv > 100 {
-		log.Printf(
-			"warning and critical must be lower or equal to 100 .. using default values warning: %d critical: %d",
-			warning, critical)
+		log.Print("warning and critical must be lower or equal to 100")
 		return
 	} else if warningEnv > criticalEnv {
-		log.Printf(
-			"warning must be lower or equal to critical .. using default values warning: %d critical: %d",
-			warning, critical)
+		log.Print("warning must be lower or equal to critical")
 		return
 	}
 
