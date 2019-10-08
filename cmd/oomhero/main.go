@@ -17,8 +17,19 @@ var (
 
 // reads warning and critical from environment or use the default ones.
 func init() {
-	warning = envVarToUint64("WARNING", warning)
-	critical = envVarToUint64("CRITICAL", critical)
+	warningEnv := envVarToUint64("WARNING", warning)
+	criticalEnv := envVarToUint64("CRITICAL", critical)
+
+	if warningEnv > 100 || criticalEnv > 100 {
+		log.Print("warning and critical must be lower or equal to 100")
+		return
+	} else if warningEnv > criticalEnv {
+		log.Print("warning must be lower or equal to critical")
+		return
+	}
+
+	warning = warningEnv
+	critical = criticalEnv
 }
 
 // envVarToUint64 converts the environment variable into a uint64, in case of
