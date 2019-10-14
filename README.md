@@ -15,6 +15,11 @@ signal handlers.
 You an see [here](https://github.com/ricardomaraschini/oomhero/blob/master/cmd/bloat/main.go)
 an example of how to capture the signals in Go.
 
+### On limits
+
+If only `requests` are specified during the pod Deployment no signal will be
+sent, this sidecar operates only on `limits`.
+
 ### Deployment example
 
 The Pod below is composed by two distinct containers, the first one is called
