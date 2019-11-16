@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"oomhero/mem"
-	"oomhero/proc"
+	"github.com/ricardomaraschini/oomhero/mem"
+	"github.com/ricardomaraschini/oomhero/proc"
 )
 
 var (
