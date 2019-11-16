@@ -10,6 +10,10 @@ import (
 )
 
 var (
+	// RestartSignal is the signal sent to the process once it needs to
+	// be restarted.
+	RestartSignal = syscall.SIGHUP
+
 	// WarningSignal is the signal sent to the process once we reach what
 	// is considered a Warning threshold.
 	WarningSignal = syscall.SIGUSR1
@@ -76,6 +80,11 @@ func SendWarning(ps []*os.Process) error {
 // SendCritical sends a critical signal to a list or processes.
 func SendCritical(ps []*os.Process) error {
 	return sendSignal(CriticalSignal, ps)
+}
+
+// SendRestart sends a restart signal to a list or processes.
+func SendRestart(ps []*os.Process) error {
+	return sendSignal(RestartSignal, ps)
 }
 
 func sendSignal(sig syscall.Signal, ps []*os.Process) error {
