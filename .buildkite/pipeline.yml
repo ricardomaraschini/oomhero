@@ -1,0 +1,21 @@
+steps:
+  - label: ":building_construction: :docker: Build Container"
+    concurrency: 1
+    concurrency_group: "docker-talon-oomhero/push-container"
+    plugins:
+      docker-compose#v3.0.3:
+        config: .buildkite/docker-compose.yml
+        build: talon-oomheroe
+        image-name: ${BUILDKITE_COMMIT}
+        image-repository: eu.gcr.io/talon-farm2/talon-one/talon-oomhero/${BUILDKITE_BRANCH}
+
+  - wait
+
+  - label: ":arrow_up: :docker: Pushing Container"
+    concurrency: 1
+    concurrency_group: "docker-talon-oomhero/push-container"
+    plugins:
+      docker-compose#v3.0.3:
+        config: .buildkite/docker-compose.yml
+        push:
+          docker-go-node:eu.gcr.io/talon-farm2/talon-one/talon-oomhero/${BUILDKITE_BRANCH}:latest

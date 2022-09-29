@@ -1,0 +1,7 @@
+version: '3'
+
+services:
+  docker-talon-oomhero:
+    build:
+        context: ../
+        dockerfile: Dockerfile
