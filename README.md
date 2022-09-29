@@ -1,3 +1,4 @@
+[![Build status](https://badge.buildkite.com/723dcc2610bfec6f4e4af96b207fa2bdd58c9aacbdc1bc1b21.svg)](https://buildkite.com/talon-dot-one/talon-oomhero)
 # OOMHero
 
 OOMHero is a sidecar that helps you to keep track of your containers memory
@@ -8,7 +9,7 @@ these signals you might be able to defeat the deadly `OOMKiller`.
 ### How it works
 
 This sidecar will send your container two signals: when memory usage crosses
-so called _warning_(**SIGUSR1**) and _critical_(**SIGUSR2**) thresholds. Your 
+so called _warning_(**SIGUSR1**) and _critical_(**SIGUSR2**) thresholds. Your
 application therefore must be able to deal with these signals by implementing
 signal handlers.
 
@@ -24,7 +25,7 @@ sent, this sidecar operates only on `limits`.
 
 The Pod below is composed by two distinct containers, the first one is called
 `bloat` and its purpose is(as the name implies) to simulate a memory leak by
-constantly allocating in a global variable. The sidecar is an `OOMHero` 
+constantly allocating in a global variable. The sidecar is an `OOMHero`
 configured to send a `SIGUSR1`(warning) when `bloat` reaches 65% and a `SIGUSR2`
 (critical) on 90%. The only pre-requisite is that both containers share the same
 process namespace, hence `shareProcessNamespace` is set to `true`.
@@ -61,7 +62,7 @@ spec:
       - name: WARNING
         value: "65"
       - name: CRITICAL
-        value: "90" 
+        value: "90"
 ```
 
 Saving the above yaml into a file you just need to deploy it:
@@ -77,7 +78,7 @@ and signals being sent by inspecting all pod logs.
 $ # for bloat container log
 $ kubectl logs -f oomhero --container bloat
 $ # for oomhero container log
-$ kubectl logs -f oomhero --container oomhero 
+$ kubectl logs -f oomhero --container oomhero
 ```
 
 ### Help needed
