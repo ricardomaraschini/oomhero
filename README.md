@@ -104,7 +104,7 @@ For instance to send `SIGTERM` when critical threshold is reached put following 
 
 ```yaml
 containers:
-  # other containers ommited for brevity
+  # other containers omitted for brevity
   - name: oomhero
     image: quay.io/rmarasch/oomhero
     imagePullPolicy: Always
