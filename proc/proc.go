@@ -17,6 +17,21 @@ var (
 	// CriticalSignal is the signal sent to the process once we reach what
 	// is considered a Critical threshold.
 	CriticalSignal = syscall.SIGUSR2
+
+	supportedSignals = map[string]syscall.Signal{
+		"SIGABRT": syscall.SIGABRT,
+		"SIGCONT": syscall.SIGCONT,
+		"SIGHUP":  syscall.SIGHUP,
+		"SIGINT":  syscall.SIGINT,
+		"SIGIOT":  syscall.SIGIOT,
+		"SIGKILL": syscall.SIGKILL,
+		"SIGQUIT": syscall.SIGQUIT,
+		"SIGSTOP": syscall.SIGSTOP,
+		"SIGTERM": syscall.SIGTERM,
+		"SIGTSTP": syscall.SIGTSTP,
+		"SIGUSR1": syscall.SIGUSR1,
+		"SIGUSR2": syscall.SIGUSR2,
+	}
 )
 
 // CmdLine returns the command line for proc.
@@ -70,12 +85,32 @@ func Others() ([]*os.Process, error) {
 
 // SendWarning sends a warning signal to a list or processes.
 func SendWarning(ps []*os.Process) error {
-	return sendSignal(WarningSignal, ps)
+	signal := resolveWarningSignal()
+	return sendSignal(signal, ps)
+}
+
+func resolveWarningSignal() syscall.Signal {
+	envSignal := os.Getenv("WARNING_SIGNAL")
+	if val, ok := supportedSignals[envSignal]; ok {
+		return val
+	}
+
+	return syscall.SIGUSR1
 }
 
 // SendCritical sends a critical signal to a list or processes.
 func SendCritical(ps []*os.Process) error {
-	return sendSignal(CriticalSignal, ps)
+	signal := resolveCriticalSignal()
+	return sendSignal(signal, ps)
+}
+
+func resolveCriticalSignal() syscall.Signal {
+	envSignal := os.Getenv("CRITICAL_SIGNAL")
+	if val, ok := supportedSignals[envSignal]; ok {
+		return val
+	}
+
+	return syscall.SIGUSR2
 }
 
 func sendSignal(sig syscall.Signal, ps []*os.Process) error {

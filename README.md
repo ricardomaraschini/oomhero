@@ -8,8 +8,9 @@ these signals you might be able to defeat the deadly `OOMKiller`.
 ### How it works
 
 This sidecar will send your container two signals: when memory usage crosses
-so called _warning_(**SIGUSR1**) and _critical_(**SIGUSR2**) thresholds. Your 
-application therefore must be able to deal with these signals by implementing
+so called _warning_(**SIGUSR1** by default) and _critical_(**SIGUSR2** by default) thresholds. 
+It is possible to use different signals by specifying appropriate environment variables.
+Your application must be able to deal with these signals by implementing
 signal handlers.
 
 You an see [here](https://github.com/ricardomaraschini/oomhero/blob/master/cmd/bloat/main.go)
@@ -78,6 +79,42 @@ $ # for bloat container log
 $ kubectl logs -f oomhero --container bloat
 $ # for oomhero container log
 $ kubectl logs -f oomhero --container oomhero 
+```
+
+### Configuring signals
+Signals supported by `OOMHero` are:
+- SIGABRT
+- SIGCONT
+- SIGHUP
+- SIGINT
+- SIGIOT
+- SIGKILL
+- SIGQUIT
+- SIGSTOP
+- SIGTERM
+- SIGTSTP
+- SIGUSR1
+- SIGUSR2
+
+To use any of those signals instead of default ones, set `WARNING_SIGNAL` and `CRITICAL_SIGNAL`
+environment variable to specify _warning_ and _critical_ signals respectively.
+If those environment variables are not set, `OOMHero` will use default values (SIGUSR1 and SIGUSR2).
+
+For instance to send `SIGTERM` when critical threshold is reached put following in pod or deployment definition:
+
+```yaml
+containers:
+  # other containers ommited for brevity
+  - name: oomhero
+    image: quay.io/rmarasch/oomhero
+    imagePullPolicy: Always
+    env:
+    - name: WARNING
+      value: "65"
+    - name: CRITICAL
+      value: "90"
+    - name: CRITICAL_SIGNAL
+      value: "SIGTERM"
 ```
 
 ### Help needed
