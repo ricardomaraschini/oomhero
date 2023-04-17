@@ -83,10 +83,9 @@ func Others() ([]*os.Process, error) {
 	return ps, nil
 }
 
-// SendWarning sends a warning signal to a list or processes.
-func SendWarning(ps []*os.Process) error {
+func SendWarningTo(p *os.Process) error {
 	signal := resolveWarningSignal()
-	return sendSignal(signal, ps)
+	return p.Signal(signal)
 }
 
 func resolveWarningSignal() syscall.Signal {
@@ -98,10 +97,9 @@ func resolveWarningSignal() syscall.Signal {
 	return syscall.SIGUSR1
 }
 
-// SendCritical sends a critical signal to a list or processes.
-func SendCritical(ps []*os.Process) error {
+func SendCriticalTo(p *os.Process) error {
 	signal := resolveCriticalSignal()
-	return sendSignal(signal, ps)
+	return p.Signal(signal)
 }
 
 func resolveCriticalSignal() syscall.Signal {
@@ -111,17 +109,4 @@ func resolveCriticalSignal() syscall.Signal {
 	}
 
 	return syscall.SIGUSR2
-}
-
-func sendSignal(sig syscall.Signal, ps []*os.Process) error {
-	merrs := &MultiErrors{}
-	for _, p := range ps {
-		if err := p.Signal(sig); err != nil {
-			merrs.es = append(merrs.es, err)
-		}
-	}
-	if len(merrs.es) == 0 {
-		return nil
-	}
-	return merrs
 }

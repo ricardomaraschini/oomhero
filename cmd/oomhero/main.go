@@ -16,14 +16,6 @@ var (
 	cooldown uint64 = 60
 )
 
-type ProcessWatch struct {
-	process              *os.Process
-	firedWarning         bool
-	warningCooldownTime  uint64
-	firedCritical        bool
-	criticalCooldownTime uint64
-}
-
 // reads warning and critical from environment or use the default ones.
 func init() {
 	warningEnv := envVarToUint64("WARNING", warning)
@@ -59,32 +51,19 @@ func envVarToUint64(name string, def uint64) uint64 {
 	return val
 }
 
-// Removes a process id from the array.
-func filter(ss []*os.Process, remove *os.Process, test func(*os.Process, *os.Process) bool) (ret []*os.Process) {
-	for _, s := range ss {
-		if test(s, remove) {
-			ret = append(ret, s)
-		}
-	}
-	return
-}
-
 func main() {
 	log.Printf("warning threshold set to %d%%", warning)
 	log.Printf("critical threshold set to %d%%", critical)
 
-	processSignalTracker := make(map[int]ProcessWatch)
-	processFilter := func(checkP *os.Process, removeP *os.Process) bool { return checkP.Pid != removeP.Pid }
+	processSignalTracker := make(map[int]ProcessWatcher)
 
 	for range time.NewTicker(time.Second).C {
 		ps, err := proc.Others()
+
 		if err != nil {
 			log.Printf("Error listing procs: %v", err)
 			continue
 		}
-
-		warn := make([]*os.Process, 0)
-		crit := make([]*os.Process, 0)
 
 		for _, p := range ps {
 			limit, usage, err := mem.LimitAndUsageForProc(p)
@@ -105,76 +84,36 @@ func main() {
 			)
 
 			if _, found := processSignalTracker[p.Pid]; !found {
-				processSignalTracker[p.Pid] = ProcessWatch{
-					process:              p,
-					firedWarning:         false,
-					firedCritical:        false,
-					warningCooldownTime:  0,
-					criticalCooldownTime: 0,
-				}
+				processSignalTracker[p.Pid] = newProcessWatcher(p)
 			}
-			processWatch := processSignalTracker[p.Pid]
+			processWatcher := processSignalTracker[p.Pid]
 
 			switch {
 			case pct < warning:
-				if processWatch.firedWarning {
-					processWatch.firedWarning = false
-					processWatch.warningCooldownTime = 0
-					log.Printf("Process %p no longer in warning", &p.Pid)
-					warn = filter(warn, p, processFilter)
+				if !processWatcher.isInState(Ok) {
+					processWatcher.transitionTo(Ok)
 				}
-				if processWatch.firedCritical {
-					processWatch.firedCritical = false
-					processWatch.criticalCooldownTime = 0
-					log.Printf("Process %p no longer in critical", &p.Pid)
-					crit = filter(crit, p, processFilter)
+			case pct >= warning && pct < critical:
+				if !processWatcher.isInState(Warning) {
+					processWatcher.transitionTo(Warning)
 				}
-				continue
-			case pct < critical: // We're at a warning stage, below critical but above warning
-				processWatch.firedWarning = true
-				if processWatch.warningCooldownTime == 0 {
-					warn = append(warn, p)
-				} else if processWatch.warningCooldownTime == cooldown {
-					processWatch.warningCooldownTime = 0
-				} else {
-					// Wait one minute before firing again
-					processWatch.warningCooldownTime++
+				if !processWatcher.onCooldown(cooldown) {
+					if err := processWatcher.signal(); err != nil {
+						log.Printf("error signaling warning: %s", err)
+					}
 				}
-				// if we're transitioning down from Critical remove Critical
-				if processWatch.firedCritical {
-					processWatch.firedCritical = false
-					processWatch.criticalCooldownTime = 0
-					crit = filter(crit, p, processFilter)
+			case pct >= critical:
+				if !processWatcher.isInState(Critical) {
+					processWatcher.transitionTo(Critical)
 				}
-			default: // We're above the critical threshold
-				processWatch.firedCritical = true
-				if processWatch.criticalCooldownTime == 0 {
-					crit = append(crit, p)
-				} else if processWatch.criticalCooldownTime == cooldown {
-					processWatch.criticalCooldownTime = 0
-				} else {
-					// Wait one minute before firing again
-					processWatch.criticalCooldownTime++
-				}
-				// if we're transitioning from Warning remove Warning
-				if processWatch.firedWarning {
-					processWatch.firedWarning = false
-					processWatch.warningCooldownTime = 0
-					warn = filter(warn, p, processFilter)
+				if !processWatcher.onCooldown(cooldown) {
+					if err := processWatcher.signal(); err != nil {
+						log.Printf("error signaling critical: %s", err)
+					}
 				}
 			}
-		}
 
-		if len(warn) > 0 {
-			if err := proc.SendWarning(warn); err != nil {
-				log.Printf("error signaling warning: %s", err)
-			}
-		}
-
-		if len(crit) > 0 {
-			if err := proc.SendCritical(crit); err != nil {
-				log.Printf("error signaling critical: %s", err)
-			}
+			processWatcher.tick()
 		}
 	}
 }
