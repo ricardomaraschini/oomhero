@@ -123,7 +123,7 @@ func getOsProcesses() ([]proc.Process, error) {
 		return nil, err
 	}
 
-	osps := make([]proc.Process, len(ps))
+	osps := make([]proc.Process, 0)
 	for _, p := range ps {
 		osps = append(osps, proc.NewOsProcess(p))
 	}
