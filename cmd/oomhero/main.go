@@ -112,8 +112,6 @@ func main() {
 					}
 				}
 			}
-
-			processWatcher.tick()
 		}
 	}
 }

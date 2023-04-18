@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"github.com/ricardomaraschini/oomhero/proc"
 )
@@ -29,9 +30,9 @@ func (s State) String() string {
 }
 
 type ProcessWatcher struct {
-	process *os.Process
-	state   State
-	elapsed uint64
+	process    *os.Process
+	state      State
+	lastSignal map[State]time.Time
 }
 
 func newProcessWatcher(p *os.Process) ProcessWatcher {
@@ -49,18 +50,19 @@ func (p *ProcessWatcher) transitionTo(s State) {
 	log.Printf("process %d transitioning to state %v from %v", p.process.Pid, s, p.state)
 
 	p.state = Ok
-	p.elapsed = 0
 }
 
 func (p *ProcessWatcher) onCooldown(cooldown uint64) bool {
-	return p.elapsed < cooldown
-}
-
-func (p *ProcessWatcher) tick() {
-	p.elapsed++
+	if val, found := p.lastSignal[p.state]; found {
+		elapsedSince := time.Now().Unix() - val.Unix()
+		return elapsedSince < int64(cooldown)
+	}
+	return false
 }
 
 func (p *ProcessWatcher) signal() error {
+	p.lastSignal[p.state] = time.Now()
+
 	switch p.state {
 	case Warning:
 		return proc.SendWarningTo(p.process)
@@ -69,5 +71,9 @@ func (p *ProcessWatcher) signal() error {
 	default:
 		return nil
 	}
+
+}
+
+func watchProcesses() {
 
 }
