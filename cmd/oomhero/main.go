@@ -4,9 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
-	"time"
 
-	"github.com/ricardomaraschini/oomhero/mem"
 	"github.com/ricardomaraschini/oomhero/proc"
 )
 
@@ -51,67 +49,23 @@ func envVarToUint64(name string, def uint64) uint64 {
 	return val
 }
 
+func getOsProcesses() ([]proc.Process, error) {
+	ps, err := proc.Others()
+	if err != nil {
+		return nil, err
+	}
+
+	osps := make([]proc.Process, len(ps))
+	for _, p := range ps {
+		osps = append(osps, proc.NewOsProcess(p))
+	}
+
+	return osps, nil
+}
+
 func main() {
 	log.Printf("warning threshold set to %d%%", warning)
 	log.Printf("critical threshold set to %d%%", critical)
 
-	processSignalTracker := make(map[int]ProcessWatcher)
-
-	for range time.NewTicker(time.Second).C {
-		ps, err := proc.Others()
-
-		if err != nil {
-			log.Printf("Error listing procs: %v", err)
-			continue
-		}
-
-		for _, p := range ps {
-			limit, usage, err := mem.LimitAndUsageForProc(p)
-			if err != nil {
-				// if there is no limit or we can't read it due
-				// to permissions move on to the next process.
-				if os.IsNotExist(err) || os.IsPermission(err) {
-					continue
-				}
-				log.Printf("error reading mem: %s", err)
-				continue
-			}
-
-			pct := (usage * 100) / limit
-			log.Printf(
-				"memory usage on pid %d's cgroup: %d%%",
-				p.Pid, pct,
-			)
-
-			if _, found := processSignalTracker[p.Pid]; !found {
-				processSignalTracker[p.Pid] = newProcessWatcher(p)
-			}
-			processWatcher := processSignalTracker[p.Pid]
-
-			switch {
-			case pct < warning:
-				if !processWatcher.isInState(Ok) {
-					processWatcher.transitionTo(Ok)
-				}
-			case pct >= warning && pct < critical:
-				if !processWatcher.isInState(Warning) {
-					processWatcher.transitionTo(Warning)
-				}
-				if !processWatcher.onCooldown(cooldown) {
-					if err := processWatcher.signal(); err != nil {
-						log.Printf("error signaling warning: %s", err)
-					}
-				}
-			case pct >= critical:
-				if !processWatcher.isInState(Critical) {
-					processWatcher.transitionTo(Critical)
-				}
-				if !processWatcher.onCooldown(cooldown) {
-					if err := processWatcher.signal(); err != nil {
-						log.Printf("error signaling critical: %s", err)
-					}
-				}
-			}
-		}
-	}
+	watchProcesses(getOsProcesses)
 }

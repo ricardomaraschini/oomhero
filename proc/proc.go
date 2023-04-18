@@ -35,8 +35,8 @@ var (
 )
 
 // CmdLine returns the command line for proc.
-func CmdLine(proc *os.Process) (string, error) {
-	cmdFile := fmt.Sprintf("/proc/%d/cmdline", proc.Pid)
+func CmdLine(proc Process) (string, error) {
+	cmdFile := fmt.Sprintf("/proc/%d/cmdline", proc.Pid())
 	cmdAsB, err := ioutil.ReadFile(cmdFile)
 	if err != nil {
 		return "", err
@@ -83,7 +83,7 @@ func Others() ([]*os.Process, error) {
 	return ps, nil
 }
 
-func SendWarningTo(p *os.Process) error {
+func SendWarningTo(p Process) error {
 	signal := resolveWarningSignal()
 	return p.Signal(signal)
 }
@@ -97,7 +97,7 @@ func resolveWarningSignal() syscall.Signal {
 	return syscall.SIGUSR1
 }
 
-func SendCriticalTo(p *os.Process) error {
+func SendCriticalTo(p Process) error {
 	signal := resolveCriticalSignal()
 	return p.Signal(signal)
 }
