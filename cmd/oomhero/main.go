@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/ricardomaraschini/oomhero/proc"
 )
@@ -11,7 +12,7 @@ import (
 var (
 	warning  uint64 = 75
 	critical uint64 = 90
-	cooldown uint64 = 60
+	cooldown uint64 = 1
 )
 
 // reads warning and critical from environment or use the default ones.
@@ -49,6 +50,73 @@ func envVarToUint64(name string, def uint64) uint64 {
 	return val
 }
 
+func main() {
+	log.Printf("warning threshold set to %d%%", warning)
+	log.Printf("critical threshold set to %d%%", critical)
+
+	watchProcesses(time.NewTicker(time.Second).C, getOsProcesses)
+}
+
+func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process, error)) {
+	processSignalTracker := make(map[int]*ProcessWatcher)
+
+	for range ticks {
+		ps, err := getProcesses()
+		if err != nil {
+			continue
+		}
+
+		for _, p := range ps {
+			pct, err := p.MemoryUsagePercent()
+			if err != nil {
+				// if there is no limit or we can't read it due
+				// to permissions move on to the next process.
+				if os.IsNotExist(err) || os.IsPermission(err) {
+					continue
+				}
+				log.Printf("error reading mem: %s", err)
+				continue
+			}
+
+			log.Printf(
+				"memory usage on pid %d's cgroup: %d%%",
+				p.Pid(), pct,
+			)
+
+			if _, found := processSignalTracker[p.Pid()]; !found {
+				watcher := newProcessWatcher(p)
+				processSignalTracker[p.Pid()] = &watcher
+			}
+			processWatcher := processSignalTracker[p.Pid()]
+
+			switch {
+			case pct < warning:
+				if !processWatcher.isInState(Ok) {
+					processWatcher.transitionTo(Ok)
+				}
+			case pct >= warning && pct < critical:
+				if !processWatcher.isInState(Warning) {
+					processWatcher.transitionTo(Warning)
+				}
+				if !processWatcher.onCooldown(cooldown) {
+					if err := processWatcher.signal(); err != nil {
+						log.Printf("error signaling warning: %s", err)
+					}
+				}
+			case pct >= critical:
+				if !processWatcher.isInState(Critical) {
+					processWatcher.transitionTo(Critical)
+				}
+				if !processWatcher.onCooldown(cooldown) {
+					if err := processWatcher.signal(); err != nil {
+						log.Printf("error signaling critical: %s", err)
+					}
+				}
+			}
+		}
+	}
+}
+
 func getOsProcesses() ([]proc.Process, error) {
 	ps, err := proc.Others()
 	if err != nil {
@@ -63,9 +131,73 @@ func getOsProcesses() ([]proc.Process, error) {
 	return osps, nil
 }
 
-func main() {
-	log.Printf("warning threshold set to %d%%", warning)
-	log.Printf("critical threshold set to %d%%", critical)
+type State int64
 
-	watchProcesses(getOsProcesses)
+const (
+	Ok State = iota
+	Warning
+	Critical
+)
+
+func (s State) String() string {
+	switch s {
+	case Ok:
+		return "Ok"
+	case Warning:
+		return "Warning"
+	case Critical:
+		return "Critical"
+	default:
+		return "Unknown"
+	}
+}
+
+type ProcessWatcher struct {
+	process     proc.Process
+	state       State
+	lastSignals map[State]time.Time
+}
+
+func newProcessWatcher(p proc.Process) ProcessWatcher {
+	return ProcessWatcher{
+		process:     p,
+		state:       Ok,
+		lastSignals: make(map[State]time.Time),
+	}
+}
+
+func (p *ProcessWatcher) isInState(s State) bool {
+	return s == p.state
+}
+
+func (p *ProcessWatcher) transitionTo(s State) {
+	log.Printf("process %d transitioning to state %v from %v", p.process.Pid(), s, p.state)
+
+	p.state = s
+}
+
+func (p *ProcessWatcher) onCooldown(cooldown uint64) bool {
+	if val, found := p.lastSignals[p.state]; found {
+		elapsedSince := currentTime().Unix() - val.Unix()
+		return elapsedSince < int64(cooldown)
+	}
+	return false
+}
+
+func (p *ProcessWatcher) signal() error {
+	p.lastSignals[p.state] = currentTime()
+
+	switch p.state {
+	case Warning:
+		return proc.SendWarningTo(p.process)
+	case Critical:
+		return proc.SendCriticalTo(p.process)
+	default:
+		return nil
+	}
+
+}
+
+var currentTime = func() time.Time {
+	return time.Now()
 }
