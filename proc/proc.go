@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/ricardomaraschini/oomhero/mem"
 )
 
 var (
@@ -33,6 +35,13 @@ var (
 		"SIGUSR2": syscall.SIGUSR2,
 	}
 )
+
+// Abstraction over process
+type Process interface {
+	Pid() int
+	Signal(os.Signal) error
+	MemoryUsagePercent() (uint64, error)
+}
 
 // CmdLine returns the command line for proc.
 func CmdLine(proc Process) (string, error) {
@@ -109,4 +118,31 @@ func resolveCriticalSignal() syscall.Signal {
 	}
 
 	return syscall.SIGUSR2
+}
+
+type OsProcess struct {
+	process *os.Process
+}
+
+func NewOsProcess(p *os.Process) OsProcess {
+	return OsProcess{
+		process: p,
+	}
+}
+
+func (p OsProcess) Pid() int {
+	return p.process.Pid
+}
+
+func (p OsProcess) Signal(s os.Signal) error {
+	return p.process.Signal(s)
+}
+
+func (p OsProcess) MemoryUsagePercent() (uint64, error) {
+	limit, usage, err := mem.LimitAndUsageForProc(p.process)
+	if err != nil {
+		return 0, err
+	}
+
+	return (usage * 100) / limit, nil
 }
