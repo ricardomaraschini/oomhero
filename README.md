@@ -117,6 +117,26 @@ containers:
       value: "SIGTERM"
 ```
 
+### Cooldown
+
+By default `OOMHero` sends one signal per second to other processes once they reach warning or critical threshold.
+This might be undesireable behavior in some circumstances, therefore cooldown can be consfigured.
+Once set, signal will be sent no more often than once in `cooldown` for each signal type separately.
+In other words other processes would not receive more than one warning and one ciritcal signal more often than once in `cooldown`.
+
+To configure cooldown set `COOLDOWN` environment variable in deployment definition to a desired number of seconds:
+```yaml
+containers:
+  # other containers omitted for brevity
+  - name: oomhero
+    image: quay.io/rmarasch/oomhero
+    imagePullPolicy: Always
+    env:
+    - name: COOLDOWN
+      # cooldown's unit is seconds
+      value: "60"
+```
+
 ### Help needed
 
 [Official documentation](https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/)
