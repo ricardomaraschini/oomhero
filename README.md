@@ -120,7 +120,7 @@ containers:
 ### Cooldown
 
 By default `OOMHero` sends one signal per second to other processes once they reach warning or critical threshold.
-This might be undesireable behavior in some circumstances, therefore cooldown can be consfigured.
+This might be undesireable behavior in some circumstances, therefore cooldown can be configured.
 Once set, signal will be sent no more often than once in `cooldown` for each signal type separately.
 In other words other processes would not receive more than one warning and one ciritcal signal more often than once in `cooldown`.
 

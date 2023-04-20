@@ -63,6 +63,7 @@ func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process,
 	for range ticks {
 		ps, err := getProcesses()
 		if err != nil {
+			log.Printf("error listing procs: %v", err)
 			continue
 		}
 
