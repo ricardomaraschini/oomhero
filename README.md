@@ -40,7 +40,7 @@ spec:
   shareProcessNamespace: true
   containers:
     - name: bloat
-      image: quay.io/rmarasch/bloat
+      image: quay.io/rmarasch/bloat:latest
       imagePullPolicy: Always
       livenessProbe:
         periodSeconds: 3
@@ -56,8 +56,10 @@ spec:
           memory: "256Mi"
           cpu: "250m"
     - name: oomhero
-      image: quay.io/rmarasch/oomhero
+      image: quay.io/rmarasch/oomhero:latest
       imagePullPolicy: Always
+      securityContext:
+        privileged: true
       env:
       - name: WARNING
         value: "65"
