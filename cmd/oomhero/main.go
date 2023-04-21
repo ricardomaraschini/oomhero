@@ -53,7 +53,6 @@ func envVarToUint64(name string, def uint64) uint64 {
 func main() {
 	log.Printf("warning threshold set to %d%%", warning)
 	log.Printf("critical threshold set to %d%%", critical)
-
 	watchProcesses(time.NewTicker(time.Second).C, getOsProcesses)
 }
 
@@ -70,19 +69,11 @@ func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process,
 		for _, p := range ps {
 			pct, err := p.MemoryUsagePercent()
 			if err != nil {
-				// if there is no limit or we can't read it due
-				// to permissions move on to the next process.
-				if os.IsNotExist(err) || os.IsPermission(err) {
-					continue
-				}
 				log.Printf("error reading mem: %s", err)
 				continue
 			}
 
-			log.Printf(
-				"memory usage on pid %d's cgroup: %d%%",
-				p.Pid(), pct,
-			)
+			log.Printf("memory usage on pid %d's cgroup: %d%%", p.Pid(), pct)
 
 			if _, found := processSignalTracker[p.Pid()]; !found {
 				watcher := newProcessWatcher(p)
