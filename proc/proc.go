@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+
+	"github.com/ricardomaraschini/oomhero/mem"
 )
 
 var (
@@ -34,9 +36,16 @@ var (
 	}
 )
 
+// Abstraction over process
+type Process interface {
+	Pid() int
+	Signal(os.Signal) error
+	MemoryUsagePercent() (uint64, error)
+}
+
 // CmdLine returns the command line for proc.
-func CmdLine(proc *os.Process) (string, error) {
-	cmdFile := fmt.Sprintf("/proc/%d/cmdline", proc.Pid)
+func CmdLine(proc Process) (string, error) {
+	cmdFile := fmt.Sprintf("/proc/%d/cmdline", proc.Pid())
 	cmdAsB, err := ioutil.ReadFile(cmdFile)
 	if err != nil {
 		return "", err
@@ -83,10 +92,9 @@ func Others() ([]*os.Process, error) {
 	return ps, nil
 }
 
-// SendWarning sends a warning signal to a list or processes.
-func SendWarning(ps []*os.Process) error {
+func SendWarningTo(p Process) error {
 	signal := resolveWarningSignal()
-	return sendSignal(signal, ps)
+	return p.Signal(signal)
 }
 
 func resolveWarningSignal() syscall.Signal {
@@ -98,10 +106,9 @@ func resolveWarningSignal() syscall.Signal {
 	return syscall.SIGUSR1
 }
 
-// SendCritical sends a critical signal to a list or processes.
-func SendCritical(ps []*os.Process) error {
+func SendCriticalTo(p Process) error {
 	signal := resolveCriticalSignal()
-	return sendSignal(signal, ps)
+	return p.Signal(signal)
 }
 
 func resolveCriticalSignal() syscall.Signal {
@@ -113,15 +120,33 @@ func resolveCriticalSignal() syscall.Signal {
 	return syscall.SIGUSR2
 }
 
-func sendSignal(sig syscall.Signal, ps []*os.Process) error {
-	merrs := &MultiErrors{}
-	for _, p := range ps {
-		if err := p.Signal(sig); err != nil {
-			merrs.es = append(merrs.es, err)
-		}
+type OsProcess struct {
+	process *os.Process
+}
+
+func NewOsProcess(p *os.Process) OsProcess {
+	return OsProcess{
+		process: p,
 	}
-	if len(merrs.es) == 0 {
-		return nil
+}
+
+func (p OsProcess) Pid() int {
+	return p.process.Pid
+}
+
+func (p OsProcess) Signal(s os.Signal) error {
+	return p.process.Signal(s)
+}
+
+func (p OsProcess) MemoryUsagePercent() (uint64, error) {
+	limit, usage, err := mem.LimitAndUsageForProc(p.process)
+	if err != nil {
+		return 0, err
 	}
-	return merrs
+
+	if limit == 0 {
+		return 0, fmt.Errorf("limit for a process is not set or is set to 0")
+	}
+
+	return (usage * 100) / limit, nil
 }
