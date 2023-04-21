@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	testTicker    = make(chan time.Time)
-	controlledNow = time.Now()
+	testTicker = make(chan time.Time)
 )
 
 func TestNoOp(t *testing.T) {
@@ -342,13 +341,11 @@ func resetState() {
 }
 
 func tickXTimes(n int) {
+	now := time.Now()
 	for i := 0; i < n; i++ {
-		controlledNow = controlledNow.Add(time.Second)
-		currentTime = func() time.Time {
-			return controlledNow
-		}
-		testTicker <- currentTime()
-		time.Sleep(50 * time.Millisecond)
+		testTicker <- now
+		time.Sleep(50 * time.Millisecond) // let the other gorutine do its things
+		now = now.Add(time.Second)
 	}
 }
 

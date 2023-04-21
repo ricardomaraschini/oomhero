@@ -60,7 +60,7 @@ func main() {
 func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process, error)) {
 	processSignalTracker := make(map[int]*ProcessWatcher)
 
-	for range ticks {
+	for now := range ticks {
 		ps, err := getProcesses()
 		if err != nil {
 			log.Printf("error listing procs: %v", err)
@@ -99,8 +99,8 @@ func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process,
 				if !processWatcher.isInState(Warning) {
 					processWatcher.transitionTo(Warning)
 				}
-				if !processWatcher.onCooldown(cooldown) {
-					if err := processWatcher.signal(); err != nil {
+				if !processWatcher.onCooldown(now) {
+					if err := processWatcher.signal(now); err != nil {
 						log.Printf("error signaling warning: %s", err)
 					}
 				}
@@ -108,8 +108,8 @@ func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process,
 				if !processWatcher.isInState(Critical) {
 					processWatcher.transitionTo(Critical)
 				}
-				if !processWatcher.onCooldown(cooldown) {
-					if err := processWatcher.signal(); err != nil {
+				if !processWatcher.onCooldown(now) {
+					if err := processWatcher.signal(now); err != nil {
 						log.Printf("error signaling critical: %s", err)
 					}
 				}
@@ -177,16 +177,16 @@ func (p *ProcessWatcher) transitionTo(s State) {
 	p.state = s
 }
 
-func (p *ProcessWatcher) onCooldown(cooldown uint64) bool {
-	if val, found := p.lastSignals[p.state]; found {
-		elapsedSince := currentTime().Unix() - val.Unix()
+func (p *ProcessWatcher) onCooldown(now time.Time) bool {
+	if then, found := p.lastSignals[p.state]; found {
+		elapsedSince := now.Unix() - then.Unix()
 		return elapsedSince < int64(cooldown)
 	}
 	return false
 }
 
-func (p *ProcessWatcher) signal() error {
-	p.lastSignals[p.state] = currentTime()
+func (p *ProcessWatcher) signal(now time.Time) error {
+	p.lastSignals[p.state] = now
 
 	switch p.state {
 	case Warning:
@@ -197,8 +197,4 @@ func (p *ProcessWatcher) signal() error {
 		return nil
 	}
 
-}
-
-var currentTime = func() time.Time {
-	return time.Now()
 }
