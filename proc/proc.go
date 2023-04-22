@@ -142,9 +142,8 @@ func (p OsProcess) MemoryUsagePercent() (uint64, error) {
 	limit, usage, err := mem.LimitAndUsageForProc(p.process)
 	if err != nil {
 		return 0, err
-	}
-	if limit == 0 {
-		return 0, fmt.Errorf("limit for a process is not set or is set to 0")
+	} else if limit == 0 {
+		return 0, nil
 	}
 	return (usage * 100) / limit, nil
 }
