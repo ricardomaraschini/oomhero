@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
-	"strings"
 )
 
 var (
@@ -32,41 +31,52 @@ func LimitAndUsageForProc(proc *os.Process) (uint64, uint64, error) {
 // falls back to v2 if necessary.
 func LimitForProc(proc *os.Process) (uint64, error) {
 	limitFile := fmt.Sprintf("/proc/%d/root/%s", proc.Pid, limitSuffixPathCgroupV1)
-	if val, err := readUint64FromFile(limitFile); err == nil {
+	if val, err := readBytesFromFile(limitFile); err == nil {
 		return val, nil
 	}
 	path, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", proc.Pid))
 	if err != nil {
 		return 0, err
 	}
-	path = bytes.TrimPrefix(path, []byte("0::"))
-	path = bytes.TrimSuffix(path, []byte("\n"))
+	pbegin := bytes.IndexByte(path, '/')
+	if pbegin == -1 {
+		return 0, fmt.Errorf("invalid cgroup path: %s", path)
+	}
+	path = bytes.TrimSpace(path[pbegin:])
 	spath := fmt.Sprintf("/sys/fs/cgroup/%s/memory.max", string(path))
-	return readUint64FromFile(spath)
+	return readBytesFromFile(spath)
 }
 
 // UsageForProc returns the amount of memory currently in use within the namespace
 // where proc lives.
 func UsageForProc(proc *os.Process) (uint64, error) {
 	usageFile := fmt.Sprintf("/proc/%d/root/%s", proc.Pid, usageSuffixPathCgroupV1)
-	if val, err := readUint64FromFile(usageFile); err == nil {
+	if val, err := readBytesFromFile(usageFile); err == nil {
 		return val, nil
 	}
 	path, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", proc.Pid))
 	if err != nil {
 		return 0, err
 	}
-	path = bytes.TrimPrefix(path, []byte("0::"))
-	path = bytes.TrimSuffix(path, []byte("\n"))
+	pbegin := bytes.IndexByte(path, '/')
+	if pbegin == -1 {
+		return 0, fmt.Errorf("invalid cgroup path: %s", path)
+	}
+	path = bytes.TrimSpace(path[pbegin:])
 	spath := fmt.Sprintf("/sys/fs/cgroup/%s/memory.current", string(path))
-	return readUint64FromFile(spath)
+	return readBytesFromFile(spath)
 }
 
-func readUint64FromFile(fpath string) (uint64, error) {
-	contentAsB, err := ioutil.ReadFile(fpath)
+// readBytesFromFile reads a file and returns its content as a uint64. if the string
+// "max" is found, this returns 0.
+func readBytesFromFile(fpath string) (uint64, error) {
+	content, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return 0, err
 	}
-	contentAsStr := strings.TrimSuffix(string(contentAsB), "\n")
-	return strconv.ParseUint(contentAsStr, 10, 64)
+	content = bytes.TrimSpace(content)
+	if string(content) == "max" {
+		return 0, nil
+	}
+	return strconv.ParseUint(string(content), 10, 64)
 }

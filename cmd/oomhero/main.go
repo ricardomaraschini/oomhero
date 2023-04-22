@@ -65,16 +65,13 @@ func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process,
 			log.Printf("error listing procs: %v", err)
 			continue
 		}
-
 		for _, p := range ps {
 			pct, err := p.MemoryUsagePercent()
 			if err != nil {
-				log.Printf("error reading mem: %s", err)
+				log.Printf("error reading mem usage for pid %d: %s", p.Pid(), err)
 				continue
 			}
-
 			log.Printf("memory usage on pid %d's cgroup: %d%%", p.Pid(), pct)
-
 			if _, found := processSignalTracker[p.Pid()]; !found {
 				watcher := newProcessWatcher(p)
 				processSignalTracker[p.Pid()] = &watcher
