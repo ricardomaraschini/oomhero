@@ -334,6 +334,68 @@ func TestCriticalSignalEnvSettingIsRespected(t *testing.T) {
 	assert.Equal(t, syscall.SIGTERM, p.receivedSignals[0])
 }
 
+func TestWarningEnvSettingIsRespected(t *testing.T) {
+	t.Cleanup(resetState)
+	t.Setenv("WARNING", "42")
+
+	cooldown = 60
+
+	p := newTestProcess(1)
+	ps := TestProcesses{
+		items: []proc.Process{&p},
+	}
+
+	assert.NotEqual(t, 42, warning)
+
+	p.memoryUsage = 41
+
+	go watchProcesses(testTicker, ps.getProcesses)
+
+	tickXTimes(3)
+
+	assert.Equal(t, 0, len(p.receivedSignals))
+
+	p.memoryUsage = 43
+
+	tickXTimes(3)
+
+	assert.Equal(t, 1, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+}
+
+func TestCriticalEnvSettingIsRespected(t *testing.T) {
+	t.Cleanup(resetState)
+	t.Setenv("WARNING", "42")
+	t.Setenv("CRITICAL", "56")
+
+	cooldown = 60
+
+	p := newTestProcess(1)
+	ps := TestProcesses{
+		items: []proc.Process{&p},
+	}
+
+	assert.NotEqual(t, 42, warning)
+	assert.NotEqual(t, 56, critical)
+
+	p.memoryUsage = 55
+
+	go watchProcesses(testTicker, ps.getProcesses)
+
+	tickXTimes(3)
+
+	assert.Equal(t, 1, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+
+	p.memoryUsage = 56
+
+	tickXTimes(3)
+
+	assert.Equal(t, 2, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+	assert.Equal(t, syscall.SIGUSR2, p.receivedSignals[1])
+}
+
 func resetState() {
 	cooldown = 1
 	close(testTicker)
