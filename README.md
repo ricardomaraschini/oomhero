@@ -126,7 +126,7 @@ This might be undesireable behavior in some circumstances, therefore cooldown ca
 Once set, signal will be sent no more often than once in `cooldown` for each signal type separately.
 In other words other processes would not receive more than one warning and one ciritcal signal more often than once in `cooldown`.
 
-To configure cooldown set `COOLDOWN` environment variable in deployment definition to a desired number of seconds:
+To configure cooldown set `COOLDOWN` environment variable in deployment definition to a value conforming to [time.ParseDuartion](https://pkg.go.dev/time#ParseDuration):
 ```yaml
 containers:
   # other containers omitted for brevity
@@ -135,8 +135,7 @@ containers:
     imagePullPolicy: Always
     env:
     - name: COOLDOWN
-      # cooldown's unit is seconds
-      value: "60"
+      value: "1m30s"
 ```
 
 ### Help needed

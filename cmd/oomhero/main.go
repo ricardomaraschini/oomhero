@@ -10,19 +10,22 @@ import (
 )
 
 var (
-	warning  uint64 = 75
-	critical uint64 = 90
-	cooldown uint64 = 1
+	warning  uint64        = 75
+	critical uint64        = 90
+	cooldown time.Duration = 1 * time.Second
 )
 
 func main() {
-	log.Printf("warning threshold set to %d%%", warning)
-	log.Printf("critical threshold set to %d%%", critical)
 	watchProcesses(time.NewTicker(time.Second).C, getOsProcesses)
 }
 
 func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process, error)) {
-	readEnvironmentVariables()
+	readThresholdsFromEnvironment()
+	readCooldownFromEnvironment()
+
+	log.Printf("warning threshold set to %d%%", warning)
+	log.Printf("critical threshold set to %d%%", critical)
+	log.Printf("cooldown set to %v", cooldown)
 
 	processSignalTracker := make(map[int]*ProcessWatcher)
 
@@ -74,10 +77,9 @@ func watchProcesses(ticks <-chan time.Time, getProcesses func() ([]proc.Process,
 }
 
 // reads warning and critical from environment or use the default ones.
-func readEnvironmentVariables() {
+func readThresholdsFromEnvironment() {
 	warningEnv := envVarToUint64("WARNING", warning)
 	criticalEnv := envVarToUint64("CRITICAL", critical)
-	cooldownEnv := envVarToUint64("COOLDOWN", cooldown)
 
 	if warningEnv > 100 || criticalEnv > 100 {
 		log.Print("warning and critical must be lower or equal to 100")
@@ -89,6 +91,34 @@ func readEnvironmentVariables() {
 
 	warning = warningEnv
 	critical = criticalEnv
+}
+
+func readCooldownFromEnvironment() {
+	asString := os.Getenv("COOLDOWN")
+	if asString == "" {
+		return
+	}
+
+	val, err := time.ParseDuration(asString)
+	if err != nil {
+		log.Printf("error parsing COOLDOWN with time.ParseDuration: %v", err)
+		log.Print("falling back to legacy behavior")
+		legacyVal, err := strconv.ParseUint(asString, 10, 64)
+		if err != nil {
+			log.Printf("error parsing COOLDOWN as uint: %v", err)
+			return
+		}
+		log.Print("detected usage of deprecated format of COOLDOWN, migrate to time.ParseDuration format as soon as possible")
+		val = time.Duration(legacyVal) * time.Second
+	}
+
+	cooldownEnv := val
+
+	if cooldownEnv < 0*time.Second {
+		log.Print("cooldown must be a positive number")
+		return
+	}
+
 	cooldown = cooldownEnv
 }
 
@@ -169,8 +199,8 @@ func (p *ProcessWatcher) transitionTo(s State) {
 
 func (p *ProcessWatcher) onCooldown(now time.Time) bool {
 	if then, found := p.lastSignals[p.state]; found {
-		elapsedSince := now.Unix() - then.Unix()
-		return elapsedSince < int64(cooldown)
+		elapsedSince := now.Sub(then)
+		return elapsedSince < cooldown
 	}
 	return false
 }
