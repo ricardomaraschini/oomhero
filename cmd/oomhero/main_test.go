@@ -12,6 +12,7 @@ import (
 
 var (
 	testTicker = make(chan time.Time)
+	now        = time.Now()
 )
 
 func TestNoOp(t *testing.T) {
@@ -32,7 +33,7 @@ func TestNoOp(t *testing.T) {
 func TestSingleWarningReceivedDuringCooldown(t *testing.T) {
 	t.Cleanup(resetState)
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = warning + 1
@@ -52,7 +53,7 @@ func TestSingleWarningReceivedDuringCooldown(t *testing.T) {
 func TestNextWarningReceivedAsCooldownElapses(t *testing.T) {
 	t.Cleanup(resetState)
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = warning + 1
@@ -63,7 +64,7 @@ func TestNextWarningReceivedAsCooldownElapses(t *testing.T) {
 
 	go watchProcesses(testTicker, ps.getProcesses)
 
-	tickXTimes(int(cooldown) + 1)
+	tickXTimes(61)
 
 	assert.Equal(t, 2, len(p.receivedSignals))
 	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
@@ -91,7 +92,7 @@ func TestMultipleWarningReceivedWithDefaultCooldown(t *testing.T) {
 func TestSingleCriticalReceivedDuringCooldown(t *testing.T) {
 	t.Cleanup(resetState)
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = critical + 1
@@ -111,7 +112,7 @@ func TestSingleCriticalReceivedDuringCooldown(t *testing.T) {
 func TestNextCriticalReceivedAsCooldownElapses(t *testing.T) {
 	t.Cleanup(resetState)
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = critical + 1
@@ -122,7 +123,7 @@ func TestNextCriticalReceivedAsCooldownElapses(t *testing.T) {
 
 	go watchProcesses(testTicker, ps.getProcesses)
 
-	tickXTimes(int(cooldown) + 1)
+	tickXTimes(61)
 
 	assert.Equal(t, 2, len(p.receivedSignals))
 	assert.Equal(t, syscall.SIGUSR2, p.receivedSignals[0])
@@ -150,7 +151,7 @@ func TestMultipleCriticalReceivedWithDefaultCooldown(t *testing.T) {
 func TestSingleCriticalAndWarningReceivedAsMemoryUsageGrowsDuringCooldown(t *testing.T) {
 	t.Cleanup(resetState)
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = 0
@@ -177,7 +178,7 @@ func TestSingleCriticalAndWarningReceivedAsMemoryUsageGrowsDuringCooldown(t *tes
 func TestSingleWarningReceivedWhenMemoryUsageOscilatesDuringCooldown(t *testing.T) {
 	t.Cleanup(resetState)
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = warning - 1
@@ -235,7 +236,7 @@ func TestMultipleWarningReceivedWhenMemoryUsageOscilatesWithDefaultCooldown(t *t
 func TestSingleCriticalAndWarningReceivedWhenMemoryUsageOscilatesDuringCooldown(t *testing.T) {
 	t.Cleanup(resetState)
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = critical - 1
@@ -296,7 +297,7 @@ func TestWarningSignalEnvSettingIsRespected(t *testing.T) {
 	t.Cleanup(resetState)
 	t.Setenv("WARNING_SIGNAL", "SIGTERM")
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = warning + 1
@@ -317,7 +318,7 @@ func TestCriticalSignalEnvSettingIsRespected(t *testing.T) {
 	t.Cleanup(resetState)
 	t.Setenv("CRITICAL_SIGNAL", "SIGTERM")
 
-	cooldown = 60
+	cooldown = 60 * time.Second
 
 	p := newTestProcess(1)
 	p.memoryUsage = critical + 1
@@ -334,14 +335,104 @@ func TestCriticalSignalEnvSettingIsRespected(t *testing.T) {
 	assert.Equal(t, syscall.SIGTERM, p.receivedSignals[0])
 }
 
+func TestWarningEnvSettingIsRespected(t *testing.T) {
+	t.Cleanup(resetState)
+	t.Setenv("WARNING", "42")
+
+	cooldown = 60 * time.Second
+
+	p := newTestProcess(1)
+	ps := TestProcesses{
+		items: []proc.Process{&p},
+	}
+
+	assert.NotEqual(t, 42, warning)
+
+	p.memoryUsage = 41
+
+	go watchProcesses(testTicker, ps.getProcesses)
+
+	tickXTimes(3)
+
+	assert.Equal(t, 0, len(p.receivedSignals))
+
+	p.memoryUsage = 43
+
+	tickXTimes(3)
+
+	assert.Equal(t, 1, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+}
+
+func TestCriticalEnvSettingIsRespected(t *testing.T) {
+	t.Cleanup(resetState)
+	t.Setenv("WARNING", "42")
+	t.Setenv("CRITICAL", "56")
+
+	cooldown = 60 * time.Second
+
+	p := newTestProcess(1)
+	ps := TestProcesses{
+		items: []proc.Process{&p},
+	}
+
+	assert.NotEqual(t, 42, warning)
+	assert.NotEqual(t, 56, critical)
+
+	p.memoryUsage = 55
+
+	go watchProcesses(testTicker, ps.getProcesses)
+
+	tickXTimes(3)
+
+	assert.Equal(t, 1, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+
+	p.memoryUsage = 56
+
+	tickXTimes(3)
+
+	assert.Equal(t, 2, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+	assert.Equal(t, syscall.SIGUSR2, p.receivedSignals[1])
+}
+
+func TestCooldownEnvSettingIsRespected(t *testing.T) {
+	t.Cleanup(resetState)
+	t.Setenv("COOLDOWN", "1m1s")
+
+	p := newTestProcess(1)
+	ps := TestProcesses{
+		items: []proc.Process{&p},
+	}
+
+	p.memoryUsage = warning + 1
+
+	go watchProcesses(testTicker, ps.getProcesses)
+
+	tickXTimes(1)
+
+	assert.Equal(t, 1, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+
+	tickXTimes(59)
+
+	assert.Equal(t, 1, len(p.receivedSignals))
+
+	tickXTimes(2)
+
+	assert.Equal(t, 2, len(p.receivedSignals))
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[0])
+	assert.Equal(t, syscall.SIGUSR1, p.receivedSignals[1])
+}
+
 func resetState() {
-	cooldown = 1
+	cooldown = 1 * time.Second
 	close(testTicker)
 	testTicker = make(chan time.Time)
 }
 
 func tickXTimes(n int) {
-	now := time.Now()
 	for i := 0; i < n; i++ {
 		testTicker <- now
 		time.Sleep(50 * time.Millisecond) // let the other gorutine do its things
