@@ -12,7 +12,7 @@ import (
 var (
 	warning  uint64        = 75
 	critical uint64        = 90
-	cooldown time.Duration = 1 * time.Second
+	cooldown time.Duration = time.Second
 )
 
 func main() {
@@ -114,7 +114,7 @@ func readCooldownFromEnvironment() {
 
 	cooldownEnv := val
 
-	if cooldownEnv < 0*time.Second {
+	if cooldownEnv < 0 {
 		log.Print("cooldown must be a positive number")
 		return
 	}
