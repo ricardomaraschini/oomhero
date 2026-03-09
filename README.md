@@ -59,7 +59,9 @@ spec:
       image: quay.io/rmarasch/oomhero:latest
       imagePullPolicy: Always
       securityContext:
-        privileged: true
+        capabilities:
+          add:
+          - SYS_PTRACE
       env:
       - name: WARNING
         value: "65"
@@ -137,10 +139,3 @@ containers:
     - name: COOLDOWN
       value: "1m30s"
 ```
-
-### Help needed
-
-[Official documentation](https://kubernetes.io/docs/tasks/configure-pod-container/share-process-namespace/)
-states that `SYS_PTRACE` capability is mandatory when signaling between containers
-on the same Pod. I could not validate if this is true as it works without it on my
-K8S cluster. If to make it work you had to add this capability please let me know.
