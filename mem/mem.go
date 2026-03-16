@@ -3,7 +3,6 @@ package mem
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 )
@@ -11,6 +10,8 @@ import (
 var (
 	limitSuffixPathCgroupV1 = "sys/fs/cgroup/memory/memory.limit_in_bytes"
 	usageSuffixPathCgroupV1 = "sys/fs/cgroup/memory/memory.usage_in_bytes"
+	limitSuffixPathCgroupV2 = "sys/fs/cgroup/memory.max"
+	usageSuffixPathCgroupV2 = "sys/fs/cgroup/memory.current"
 )
 
 // LimitAndUsageForProc returns memory limit and usage for cgroup where proc
@@ -34,17 +35,8 @@ func LimitForProc(proc *os.Process) (uint64, error) {
 	if val, err := readBytesFromFile(limitFile); err == nil {
 		return val, nil
 	}
-	path, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", proc.Pid))
-	if err != nil {
-		return 0, err
-	}
-	pbegin := bytes.IndexByte(path, '/')
-	if pbegin == -1 {
-		return 0, fmt.Errorf("invalid cgroup path: %s", path)
-	}
-	path = bytes.TrimSpace(path[pbegin:])
-	spath := fmt.Sprintf("/sys/fs/cgroup/%s/memory.max", string(path))
-	return readBytesFromFile(spath)
+	limitFile = fmt.Sprintf("/proc/%d/root/%s", proc.Pid, limitSuffixPathCgroupV2)
+	return readBytesFromFile(limitFile)
 }
 
 // UsageForProc returns the amount of memory currently in use within the namespace
@@ -54,23 +46,14 @@ func UsageForProc(proc *os.Process) (uint64, error) {
 	if val, err := readBytesFromFile(usageFile); err == nil {
 		return val, nil
 	}
-	path, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", proc.Pid))
-	if err != nil {
-		return 0, err
-	}
-	pbegin := bytes.IndexByte(path, '/')
-	if pbegin == -1 {
-		return 0, fmt.Errorf("invalid cgroup path: %s", path)
-	}
-	path = bytes.TrimSpace(path[pbegin:])
-	spath := fmt.Sprintf("/sys/fs/cgroup/%s/memory.current", string(path))
-	return readBytesFromFile(spath)
+	usageFile = fmt.Sprintf("/proc/%d/root/%s", proc.Pid, usageSuffixPathCgroupV2)
+	return readBytesFromFile(usageFile)
 }
 
 // readBytesFromFile reads a file and returns its content as a uint64. if the string
 // "max" is found, this returns 0.
 func readBytesFromFile(fpath string) (uint64, error) {
-	content, err := ioutil.ReadFile(fpath)
+	content, err := os.ReadFile(fpath)
 	if err != nil {
 		return 0, err
 	}
