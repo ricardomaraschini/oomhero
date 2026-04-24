@@ -8,6 +8,7 @@ use oomhero::events;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
+use std::env;
 use std::process;
 use std::sync;
 use std::thread;
@@ -32,9 +33,19 @@ fn parse_duration(s: &str) -> Result<time::Duration, String> {
 
 fn main() {
     env_logger::init();
-    let args = Arguments::parse();
+    let mut args = Arguments::parse();
 
-    println!(
+    if let Ok(warning) = env::var("WARNING") {
+        warn!("use of WARNING environment variable is being deprecated, use --warning instead");
+        args.warning = warning.parse().expect("failed to parse warning env");
+    }
+
+    if let Ok(critical) = env::var("CRITICAL") {
+        warn!("use of CRITICAL environment variable is being deprecated, use --critical instead");
+        args.critical = critical.parse().expect("failed to parse critical env");
+    }
+
+    info!(
         "starting watermarks: warning: {}%  critical: {}%",
         args.warning, args.critical
     );

@@ -1,3 +1,4 @@
+use log::warn;
 use std::cmp::Ordering;
 use std::sync::mpsc;
 
@@ -85,7 +86,7 @@ impl Transmitter {
     // to fry if we ever encounter this.
     pub fn send(&self, event: Event) {
         if let Err(err) = self.channel.send(event) {
-            println!("error sending message: {err}");
+            warn!("error sending message: {err}");
         }
     }
 }
