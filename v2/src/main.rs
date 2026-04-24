@@ -11,6 +11,7 @@ use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
 use std::env;
 use std::process;
+use std::str::FromStr;
 use std::sync;
 use std::thread;
 use std::time;
@@ -36,27 +37,40 @@ struct Arguments {
     critical_signal: signal::Signal,
 }
 
+const VERSION: &str = "2.0.0";
+
 // parse_duration is used to parse the interval command line flag.
 fn parse_duration(s: &str) -> Result<time::Duration, String> {
     duration_str::parse(s).map_err(|e| e.to_string())
 }
 
-// environment_overwrites overrides command line arguments with environment variables. the use of
-// environment variables will be deprecated, keeping them around for backwards compatibility.
+// environment_overwrites overwrites command line arguments with environment variables.
+// the use of environment variables will be deprecated, keeping them around for backwards
+// compatibility.
 fn environment_overwrites(args: &mut Arguments) {
-    if let Ok(warning) = env::var("WARNING") {
-        warn!("WARNING environment variable is being deprecated, use --warning flag instead");
-        args.warning = warning.parse().expect("failed to parse warning env");
+    if let Ok(val) = env::var("WARNING") {
+        warn!("WARNING env var is being deprecated (use flag)");
+        args.warning = val.parse().expect("parsing env var");
     }
 
-    if let Ok(critical) = env::var("CRITICAL") {
-        warn!("CRITICAL environment variable is being deprecated, use --critical flag instead");
-        args.critical = critical.parse().expect("failed to parse critical env");
+    if let Ok(val) = env::var("CRITICAL") {
+        warn!("CRITICAL env var is being deprecated (use flag)");
+        args.critical = val.parse().expect("parsing env var");
     }
 
-    if let Ok(cooldown) = env::var("COOLDOWN") {
-        warn!("COOLDOWN environment variable is being deprecated, use --cooldown flag instead");
-        args.cooldown = parse_duration(&cooldown).expect("failed to parse cooldown env");
+    if let Ok(val) = env::var("COOLDOWN") {
+        warn!("COOLDOWN env var is being deprecated (use flag)");
+        args.cooldown = parse_duration(&val).expect("parsing env var");
+    }
+
+    if let Ok(val) = env::var("WARNING_SIGNAL") {
+        warn!("WARNING_SIGNAL env var is being deprecated (use flag)");
+        args.warning_signal = signal::Signal::from_str(&val).expect("parsing env var")
+    }
+
+    if let Ok(val) = env::var("CRITICAL_SIGNAL") {
+        warn!("CRITICAL_SIGNAL env var is being deprecated (use flag)");
+        args.critical_signal = signal::Signal::from_str(&val).expect("parsing env var")
     }
 }
 
@@ -119,18 +133,17 @@ fn main() {
 // print_welcome prints the welcome banner and all paramaters as parsed from the command line
 // arguments or environment variables.
 fn print_welcome(args: &Arguments) {
-    info!(" /$$");
-    info!("| $$");
-    info!("| $$$$$$$   /$$$$$$   /$$$$$$   /$$$$$$ ");
-    info!("| $$__  $$ /$$__  $$ /$$__  $$ /$$__  $$");
-    info!("| $$  | $$| $$$$$$$$| $$  |__/| $$  | $$");
-    info!("| $$  | $$| $$_____/| $$      | $$  | $$");
-    info!("| $$  | $$|  $$$$$$$| $$      |  $$$$$$/");
-    info!("|__/  |__/  |_______/|__/      |______/");
-    info!("warning: {}", args.warning);
-    info!("critical: {}", args.critical);
-    info!("interval: {:?}", args.interval);
-    info!("cooldown: {:?}", args.cooldown);
-    info!("warning_signal: {:?}", args.warning_signal);
-    info!("critical_signal: {:?}", args.critical_signal);
+    info!("                          ");
+    info!("┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐┌─┐     ");
+    info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │     ");
+    info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'    ");
+    info!(" ────          v{VERSION} ");
+    info!("                          ");
+    info!("active config:            ");
+    info!("  warning:         {}%    ", args.warning);
+    info!("  critical:        {}%    ", args.critical);
+    info!("  interval:        {:?}   ", args.interval);
+    info!("  cooldown:        {:?}   ", args.cooldown);
+    info!("  warning_signal:  {:?}   ", args.warning_signal);
+    info!("  critical_signal: {:?}   ", args.critical_signal);
 }
