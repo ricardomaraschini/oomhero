@@ -1,0 +1,10 @@
+FROM docker.io/rust:slim-trixie AS builder
+RUN apt update -y
+RUN apt install make -y
+WORKDIR /oomhero
+COPY . .
+RUN make build
+
+FROM docker.io/debian:trixie-slim
+COPY --from=builder /oomhero/target/release/oomhero /usr/local/bin/oomhero
+ENTRYPOINT [ "oomhero" ]

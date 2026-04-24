@@ -1,0 +1,15 @@
+[package]
+name = "oomhero"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chrono = "0.4.44"
+clap = { version = "4.6.1", features = ["derive"] }
+duration-str = "0.21.0"
+env_logger = "0.11.10"
+log = "0.4.29"
+moka = { version = "0.12.15", features = ["sync"] }
+nix = { version = "0.31.2", features = ["fs", "signal"] }
+signal-hook = "0.4.4"
+thiserror = "2.0.18"

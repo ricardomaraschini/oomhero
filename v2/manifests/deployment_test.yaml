@@ -1,0 +1,41 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: oomhero
+  namespace: oomhero
+spec:
+  shareProcessNamespace: true
+  containers:
+  - name: bloat
+    image: quay.io/rmarasch/bloat:latest
+    imagePullPolicy: Always
+    livenessProbe:
+      periodSeconds: 3
+      failureThreshold: 1
+      httpGet:
+        path: /healthz
+        port: 8080
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "250m"
+  - name: nginx
+    image: docker.io/nginx:latest
+  - name: oomhero
+    image: docker.io/ricardomaraschini/oomhero:latest
+    imagePullPolicy: Always
+    env:
+    - name: RUST_LOG
+      value: info
+    resources:
+      limits:
+        cpu: "1m"
+        memory: "32Mi"
+    securityContext:
+      capabilities:
+        add:
+        - SYS_PTRACE
+
