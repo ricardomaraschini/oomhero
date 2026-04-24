@@ -25,8 +25,10 @@ spec:
   - name: nginx
     image: docker.io/nginx:latest
   - name: oomhero
-    image: docker.io/ricardomaraschini/oomhero:latest
+    image: docker.io/ricardomaraschini/oomhero:v2
     imagePullPolicy: Always
+    args:
+    - --cooldown=10ms
     env:
     - name: RUST_LOG
       value: info
