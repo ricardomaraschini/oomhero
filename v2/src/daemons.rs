@@ -1,7 +1,6 @@
 use super::errors::Error;
 use super::events;
 use super::processes;
-use chrono::Utc;
 use moka::sync::Cache;
 use nix::sys::signal;
 use std::thread;
@@ -10,7 +9,7 @@ use std::time;
 // SignalRecord is a struct used to keep track of sent signals.
 #[derive(Debug, Clone)]
 struct SignalRecord {
-    when: chrono::DateTime<Utc>,
+    when: time::Instant,
     kind: signal::Signal,
 }
 
@@ -27,7 +26,7 @@ pub struct Monitor<'a> {
     critical: f32,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
-    signal_interval_secs: i64,
+    signal_interval: time::Duration,
 }
 
 impl<'a> Monitor<'a> {
@@ -39,14 +38,15 @@ impl<'a> Monitor<'a> {
         warning: f32,
         critical: f32,
         loop_interval: time::Duration,
+        signal_interval: time::Duration,
     ) -> Self {
         Monitor {
             sink,
             warning,
             critical,
             loop_interval,
+            signal_interval,
             last_signals: Cache::new(1_000),
-            signal_interval_secs: 30,
         }
     }
 
@@ -58,7 +58,7 @@ impl<'a> Monitor<'a> {
     // you better set proper resource.limits.cpu values as that is what guides how often we run the
     // loops.
     pub fn run(&self) {
-        let mut last_pass = Utc::now();
+        let mut last_pass = time::Instant::now();
         let mut passes: i64 = 0;
         loop {
             thread::sleep(self.loop_interval);
@@ -113,17 +113,17 @@ impl<'a> Monitor<'a> {
             }
 
             passes += 1;
-            let since_last_pass = Utc::now() - last_pass;
-            if since_last_pass.num_minutes() < 1 {
+            let since_last_pass = time::Instant::now() - last_pass;
+            if since_last_pass.as_secs() < 60 {
                 continue;
             }
 
-            last_pass = Utc::now();
-            let per_second = passes / since_last_pass.num_seconds();
+            last_pass = time::Instant::now();
+            let per_second = passes / since_last_pass.as_secs() as i64;
             self.sink.send(
                 events::Event::default()
                     .with_priority(events::Priority::Low)
-                    .with_message(format!("last minute passes per second: {per_second}")),
+                    .with_message(format!("scans per second: {per_second}")),
             );
         }
     }
@@ -148,8 +148,8 @@ impl<'a> Monitor<'a> {
     fn send_signal(&self, pid: i32, sig: signal::Signal, usage: f32, desc: &str) {
         if let Some(last_signal) = self.last_signals.get(&pid) {
             if last_signal.kind == sig {
-                let elapsed = Utc::now() - last_signal.when;
-                if elapsed.num_seconds() < self.signal_interval_secs {
+                let elapsed = time::Instant::now() - last_signal.when;
+                if elapsed < self.signal_interval {
                     return;
                 }
             }
@@ -169,7 +169,7 @@ impl<'a> Monitor<'a> {
         self.last_signals.insert(
             pid,
             SignalRecord {
-                when: Utc::now(),
+                when: time::Instant::now(),
                 kind: sig,
             },
         );

@@ -24,6 +24,9 @@ struct Arguments {
 
     #[arg(long, default_value = "10ms", help = "How often scan all processes", value_parser = parse_duration)]
     interval: time::Duration,
+
+    #[arg(long, default_value = "30s", help = "Interval between signals", value_parser = parse_duration)]
+    cooldown: time::Duration,
 }
 
 // parse_duration is used to parse the interval command line flag.
@@ -31,23 +34,33 @@ fn parse_duration(s: &str) -> Result<time::Duration, String> {
     duration_str::parse(s).map_err(|e| e.to_string())
 }
 
-fn main() {
-    env_logger::init();
-    let mut args = Arguments::parse();
-
+// environment_overwrites overrides command line arguments with environment variables. the use of
+// environment variables will be deprecated, keeping them around for backwards compatibility.
+fn environment_overwrites(args: &mut Arguments) {
     if let Ok(warning) = env::var("WARNING") {
-        warn!("use of WARNING environment variable is being deprecated, use --warning instead");
+        warn!("WARNING environment variable is being deprecated, use --warning flag instead");
         args.warning = warning.parse().expect("failed to parse warning env");
     }
 
     if let Ok(critical) = env::var("CRITICAL") {
-        warn!("use of CRITICAL environment variable is being deprecated, use --critical instead");
+        warn!("CRITICAL environment variable is being deprecated, use --critical flag instead");
         args.critical = critical.parse().expect("failed to parse critical env");
     }
 
+    if let Ok(cooldown) = env::var("COOLDOWN") {
+        warn!("COOLDOWN environment variable is being deprecated, use --cooldown flag instead");
+        args.cooldown = parse_duration(&cooldown).expect("failed to parse cooldown env");
+    }
+}
+
+fn main() {
+    env_logger::init();
+    let mut args = Arguments::parse();
+    environment_overwrites(&mut args);
+
     info!(
         "starting watermarks: warning: {}%  critical: {}%",
-        args.warning, args.critical
+        args.warning, args.critical,
     );
 
     let mut incoming_signals =
@@ -68,6 +81,7 @@ fn main() {
             args.warning as f32,
             args.critical as f32,
             args.interval,
+            args.cooldown,
         );
         monitor.run();
     });
