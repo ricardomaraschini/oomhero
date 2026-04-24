@@ -3,6 +3,7 @@ use duration_str;
 use log::info;
 use log::warn;
 use moka::sync::Cache;
+use nix::sys::signal;
 use oomhero::daemons;
 use oomhero::events;
 use signal_hook::consts::SIGINT;
@@ -27,6 +28,12 @@ struct Arguments {
 
     #[arg(long, default_value = "30s", help = "Interval between signals", value_parser = parse_duration)]
     cooldown: time::Duration,
+
+    #[arg(long, default_value = "SIGUSR1", help = "Signal send on warning")]
+    warning_signal: signal::Signal,
+
+    #[arg(long, default_value = "SIGUSR2", help = "Signal send on critical")]
+    critical_signal: signal::Signal,
 }
 
 // parse_duration is used to parse the interval command line flag.
@@ -54,14 +61,16 @@ fn environment_overwrites(args: &mut Arguments) {
 }
 
 fn main() {
+    if env::var("RUST_LOG").is_err() {
+        unsafe {
+            env::set_var("RUST_LOG", "info");
+        }
+    }
+
     env_logger::init();
     let mut args = Arguments::parse();
     environment_overwrites(&mut args);
-
-    info!(
-        "starting watermarks: warning: {}%  critical: {}%",
-        args.warning, args.critical,
-    );
+    print_welcome(&args);
 
     let mut incoming_signals =
         Signals::new([SIGINT, SIGTERM]).expect("failed to setup signal handlers");
@@ -82,6 +91,8 @@ fn main() {
             args.critical as f32,
             args.interval,
             args.cooldown,
+            args.warning_signal,
+            args.critical_signal,
         );
         monitor.run();
     });
@@ -103,4 +114,23 @@ fn main() {
         last_messages.insert(event.pid, event.clone());
         info!("{:?}", event);
     }
+}
+
+// print_welcome prints the welcome banner and all paramaters as parsed from the command line
+// arguments or environment variables.
+fn print_welcome(args: &Arguments) {
+    info!(" /$$");
+    info!("| $$");
+    info!("| $$$$$$$   /$$$$$$   /$$$$$$   /$$$$$$ ");
+    info!("| $$__  $$ /$$__  $$ /$$__  $$ /$$__  $$");
+    info!("| $$  | $$| $$$$$$$$| $$  |__/| $$  | $$");
+    info!("| $$  | $$| $$_____/| $$      | $$  | $$");
+    info!("| $$  | $$|  $$$$$$$| $$      |  $$$$$$/");
+    info!("|__/  |__/  |_______/|__/      |______/");
+    info!("warning: {}", args.warning);
+    info!("critical: {}", args.critical);
+    info!("interval: {:?}", args.interval);
+    info!("cooldown: {:?}", args.cooldown);
+    info!("warning_signal: {:?}", args.warning_signal);
+    info!("critical_signal: {:?}", args.critical_signal);
 }
