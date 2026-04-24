@@ -26,6 +26,8 @@ pub struct Monitor<'a> {
     critical: f32,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
+    warning_signal: signal::Signal,
+    critical_signal: signal::Signal,
     signal_interval: time::Duration,
 }
 
@@ -39,6 +41,8 @@ impl<'a> Monitor<'a> {
         critical: f32,
         loop_interval: time::Duration,
         signal_interval: time::Duration,
+        warning_signal: signal::Signal,
+        critical_signal: signal::Signal,
     ) -> Self {
         Monitor {
             sink,
@@ -46,6 +50,8 @@ impl<'a> Monitor<'a> {
             critical,
             loop_interval,
             signal_interval,
+            warning_signal,
+            critical_signal,
             last_signals: Cache::new(1_000),
         }
     }
@@ -95,11 +101,11 @@ impl<'a> Monitor<'a> {
                 };
 
                 if usage >= self.critical {
-                    self.send_signal(pid, signal::SIGUSR2, usage, "critical");
+                    self.send_signal(pid, self.critical_signal, usage, "critical");
                     continue;
                 }
                 if usage >= self.warning {
-                    self.send_signal(pid, signal::SIGUSR1, usage, "warning");
+                    self.send_signal(pid, self.warning_signal, usage, "warning");
                     continue;
                 }
 
