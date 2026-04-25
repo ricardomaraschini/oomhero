@@ -27,11 +27,6 @@ spec:
   - name: oomhero
     image: docker.io/ricardomaraschini/oomhero:v2
     imagePullPolicy: Always
-    args:
-    - --cooldown=10ms
-    env:
-    - name: RUST_LOG
-      value: info
     resources:
       limits:
         cpu: "1m"

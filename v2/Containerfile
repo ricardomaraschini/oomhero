@@ -3,7 +3,7 @@ RUN apt update -y
 RUN apt install make -y
 WORKDIR /oomhero
 COPY . .
-RUN make build
+RUN make release
 
 FROM docker.io/debian:trixie-slim
 COPY --from=builder /oomhero/target/release/oomhero /usr/local/bin/oomhero

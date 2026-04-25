@@ -24,7 +24,7 @@ struct Arguments {
     #[arg(long, default_value = "90", help = "Critical memory usage watermark")]
     critical: i32,
 
-    #[arg(long, default_value = "10ms", help = "How often scan all processes", value_parser = parse_duration)]
+    #[arg(long, default_value = "100ms", help = "How often scan all processes", value_parser = parse_duration)]
     interval: time::Duration,
 
     #[arg(long, default_value = "30s", help = "Interval between signals", value_parser = parse_duration)]
@@ -35,9 +35,12 @@ struct Arguments {
 
     #[arg(long, default_value = "SIGUSR2", help = "Signal send on critical")]
     critical_signal: signal::Signal,
+
+    #[arg(long, default_value = "false", help = "Print version")]
+    version: bool,
 }
 
-const VERSION: &str = "2.0.0";
+const VERSION: &str = "2.0.0-alpha";
 
 // parse_duration is used to parse the interval command line flag.
 fn parse_duration(s: &str) -> Result<time::Duration, String> {
@@ -83,6 +86,11 @@ fn main() {
 
     env_logger::init();
     let mut args = Arguments::parse();
+    if args.version {
+        println!("oomhero version v{VERSION}");
+        return;
+    }
+
     environment_overwrites(&mut args);
     print_welcome(&args);
 
