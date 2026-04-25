@@ -1,12 +1,9 @@
-extern crate vergen;
-
-use vergen::EmitBuilder;
+extern crate vergen_git2;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    EmitBuilder::builder()
-        .git_sha(true)
-        .git_dirty(true)
-        .git_commit_date()
+    let git = vergen_git2::Git2Builder::all_git()?;
+    vergen_git2::Emitter::default()
+        .add_instructions(&git)?
         .emit()?;
     Ok(())
 }

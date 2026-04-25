@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [build-dependencies]
-vergen = { version = "8.3.2", features = ["git", "gitcl"] }
+vergen-git2 = "9.1.0"
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }
