@@ -40,7 +40,9 @@ struct Arguments {
     version: bool,
 }
 
-const VERSION: &str = "2.0.0-alpha";
+const COMMIT_DATE: &str = env!("VERGEN_GIT_COMMIT_DATE");
+const COMMIT_HASH: &str = env!("VERGEN_GIT_SHA");
+const COMMIT_DIRTY: &str = env!("VERGEN_GIT_DIRTY");
 
 // parse_duration is used to parse the interval command line flag.
 fn parse_duration(s: &str) -> Result<time::Duration, String> {
@@ -87,12 +89,13 @@ fn main() {
     env_logger::init();
     let mut args = Arguments::parse();
     if args.version {
-        println!("oomhero version v{VERSION}");
+        banner();
         return;
     }
 
     environment_overwrites(&mut args);
-    print_welcome(&args);
+    banner();
+    active_config(&args);
 
     let mut incoming_signals =
         Signals::new([SIGINT, SIGTERM]).expect("failed to setup signal handlers");
@@ -138,14 +141,20 @@ fn main() {
     }
 }
 
-// print_welcome prints the welcome banner and all paramaters as parsed from the command line
-// arguments or environment variables.
-fn print_welcome(args: &Arguments) {
-    info!("                          ");
+// banner prints the banner.
+fn banner() {
     info!("┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐┌─┐     ");
     info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │     ");
     info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'    ");
-    info!(" ────          v{VERSION} ");
+    info!(" ────                     ");
+    info!("compile information:      ");
+    info!("  commit_date:     {}     ", COMMIT_DATE);
+    info!("  commit_hash:     {}     ", COMMIT_HASH);
+    info!("  dirty:           {}     ", COMMIT_DIRTY);
+}
+
+// active config prints the active configuration present int he arguments.
+fn active_config(args: &Arguments) {
     info!("                          ");
     info!("active config:            ");
     info!("  warning:         {}%    ", args.warning);
