@@ -62,9 +62,6 @@ spec:
         cpu: "250m"
   - name: oomhero
     image: docker.io/ricardomaraschini/oomhero:v2
-    env:
-    - name: RUST_LOG
-      value: info
     resources:
       limits:
         cpu: "1m"
@@ -77,12 +74,12 @@ spec:
 
 ## Usage
 ```bash
-oomhero --warning 75 --critical 90 --interval 10ms
+oomhero --warning 75 --critical 90 --interval 200ms
 ```
 **Options:**
 - `--warning <N>` - Warning threshold % (default: 75)
 - `--critical <N>` - Critical threshold % (default: 90)
-- `--interval <DURATION>` - Scan interval (default: 10ms)
+- `--interval <DURATION>` - Scan interval (default: 100ms)
 
 **Environment:**
 - `RUST_LOG=info` - Log level (debug, info, warn, error)
@@ -137,9 +134,9 @@ spec:
 
 > [!IMPORTANT]
 > The scan loop runs continuously at `--interval` rate, the default is to run a
-> full scan every 10ms making it **very** aggressive with regards to CPU usage,
-> this is by design. You can adjust the interval by setting proper
-> `resource.limits.cpu` values for the container **OR** by passing a custom
+> full scan every 100ms making it **very** aggressive with regards to CPU usage,
+> this is by design. You can either adjust the interval by setting and adequate
+> `resource.limits.cpu` value for the container **OR** by passing a custom
 > `--interval` flag.
 
 ## Requirements
