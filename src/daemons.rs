@@ -69,8 +69,8 @@ impl<'a> Monitor<'a> {
         loop {
             thread::sleep(self.loop_interval);
 
-            let pids = match processes::list() {
-                Ok(pids) => pids,
+            let processes = match processes::list() {
+                Ok(processes) => processes,
                 Err(err) => {
                     self.sink.send(
                         events::Event::default()
@@ -81,18 +81,19 @@ impl<'a> Monitor<'a> {
                 }
             };
 
-            for pid in pids {
+            for process in processes {
                 // skip pause container.
-                if pid == 1 {
+                if process.pid == 1 {
                     continue;
                 }
 
-                let usage = match self.assess_process_usage(pid) {
+                let usage = match self.assess_process_usage(process.pid) {
                     Ok(usage) => usage,
                     Err(err) => {
                         self.sink.send(
                             events::Event::default()
-                                .with_pid(pid)
+                                .with_cmdline(process.cmdline)
+                                .with_pid(process.pid)
                                 .with_priority(events::Priority::Low)
                                 .with_message(format!("error reading memory usage: {err}")),
                         );
@@ -101,17 +102,18 @@ impl<'a> Monitor<'a> {
                 };
 
                 if usage >= self.critical {
-                    self.send_signal(pid, self.critical_signal, usage, "critical");
+                    self.send_signal(&process, self.critical_signal, usage, "critical");
                     continue;
                 }
                 if usage >= self.warning {
-                    self.send_signal(pid, self.warning_signal, usage, "warning");
+                    self.send_signal(&process, self.warning_signal, usage, "warning");
                     continue;
                 }
 
                 self.sink.send(
                     events::Event::default()
-                        .with_pid(pid)
+                        .with_cmdline(process.cmdline)
+                        .with_pid(process.pid)
                         .with_priority(events::Priority::Low)
                         .with_memory_usage(usage)
                         .with_message(format!("memory usage within limits")),
@@ -151,8 +153,14 @@ impl<'a> Monitor<'a> {
     // send_signal sends the provided signal to the provided process. this function also generate an
     // event either in case of success or failure. This function also accepts a description for the
     // signal (that is used only for giving the resultin event more context).
-    fn send_signal(&self, pid: i32, sig: signal::Signal, usage: f32, desc: &str) {
-        if let Some(last_signal) = self.last_signals.get(&pid) {
+    fn send_signal(
+        &self,
+        process: &processes::Process,
+        sig: signal::Signal,
+        usage: f32,
+        desc: &str,
+    ) {
+        if let Some(last_signal) = self.last_signals.get(&process.pid) {
             if last_signal.kind == sig {
                 let elapsed = time::Instant::now() - last_signal.when;
                 if elapsed < self.signal_interval {
@@ -161,19 +169,20 @@ impl<'a> Monitor<'a> {
             }
         }
 
-        if let Err(err) = processes::send_signal(pid, sig) {
+        if let Err(err) = processes::send_signal(process.pid, sig) {
             self.sink.send(
                 events::Event::default()
                     .with_priority(events::Priority::High)
                     .with_message(format!("fail sending {desc} signal: {err}"))
                     .with_memory_usage(usage)
-                    .with_pid(pid),
+                    .with_pid(process.pid)
+                    .with_cmdline(process.cmdline.clone()),
             );
             return;
         }
 
         self.last_signals.insert(
-            pid,
+            process.pid,
             SignalRecord {
                 when: time::Instant::now(),
                 kind: sig,
@@ -185,7 +194,8 @@ impl<'a> Monitor<'a> {
                 .with_priority(events::Priority::High)
                 .with_message(format!("{desc} signal sent successfully"))
                 .with_memory_usage(usage)
-                .with_pid(pid),
+                .with_pid(process.pid)
+                .with_cmdline(process.cmdline.clone()),
         );
     }
 }

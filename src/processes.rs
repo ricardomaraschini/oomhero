@@ -3,13 +3,19 @@ use nix::sys::signal;
 use nix::unistd;
 use std::fs;
 
+// Process holds information about a specific process running on the system.
+pub struct Process {
+    pub pid: i32,
+    pub cmdline: String,
+}
+
 // list processes entries under the /proc filesystem and returns a list of pids. Due to the nature
 // of /proc filesystem there is no guarantee that the returned list is the complete set, processes
 // come and go as they please.
-pub fn list() -> Result<Vec<i32>, Error> {
+pub fn list() -> Result<Vec<Process>, Error> {
     let dir_entries = fs::read_dir("/proc")?;
 
-    let mut pids: Vec<i32> = Vec::new();
+    let mut processes: Vec<Process> = Vec::new();
     for tmp_entry in dir_entries {
         let entry = tmp_entry?;
 
@@ -32,14 +38,18 @@ pub fn list() -> Result<Vec<i32>, Error> {
             continue;
         };
 
-        let Ok(num): Result<i32, _> = as_str.parse() else {
+        let Ok(pid): Result<i32, _> = as_str.parse() else {
             continue;
         };
 
-        pids.push(num);
+        let Ok(cmdline) = cmdline(pid) else {
+            continue;
+        };
+
+        processes.push(Process { pid, cmdline });
     }
 
-    Ok(pids)
+    Ok(processes)
 }
 
 // memory_stats returns stats about memory utilization for the provided process id. values are
@@ -82,6 +92,17 @@ pub fn oom_score(pid: i32) -> Result<i32, Error> {
     let oom_score_adj: i32 = oom_score_adj.trim().parse()?;
 
     Ok(oom_score + oom_score_adj)
+}
+
+// cmdline reads the cmdline for a given pid. Commands on cmdline is defined as a string
+// where the command and the arguments are separated by a \0. This function returns only
+// the first part (ignore the arguments).
+pub fn cmdline(pid: i32) -> Result<String, Error> {
+    let path = format!("/proc/{}/cmdline", pid);
+    let cmdline = fs::read_to_string(path)?;
+    let slices = cmdline.split('\0');
+    let slices: Vec<&str> = slices.collect();
+    Ok(slices[0].to_string())
 }
 
 // send_signal sends a signal to the process pointed by the pid.
