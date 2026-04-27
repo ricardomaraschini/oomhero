@@ -11,6 +11,7 @@ pub struct Event {
     pub message: String,
     pub priority: Priority,
     pub memory_usage: f32,
+    pub cmdline: String,
 }
 
 // Priority determines how relevant an event on the system is. receivers of such events should
@@ -29,6 +30,7 @@ impl Event {
             message: String::new(),
             priority: Priority::Low,
             memory_usage: 0.0,
+            cmdline: String::new(),
         }
     }
 
@@ -53,6 +55,12 @@ impl Event {
     // with_memory_usage sets the memory usage property inside the event.
     pub fn with_memory_usage(mut self, usage: f32) -> Self {
         self.memory_usage = usage;
+        self
+    }
+
+    // with_cmdline sets the cmdline property of an event.
+    pub fn with_cmdline(mut self, cmdline: String) -> Self {
+        self.cmdline = cmdline;
         self
     }
 

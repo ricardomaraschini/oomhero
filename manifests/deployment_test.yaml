@@ -29,7 +29,7 @@ spec:
     imagePullPolicy: Always
     resources:
       limits:
-        cpu: "1m"
+        cpu: "10m"
         memory: "32Mi"
     securityContext:
       capabilities:
