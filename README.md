@@ -73,19 +73,19 @@ spec:
 
 ## Usage
 ```bash
-oomhero --warning 75 --critical 90 --interval 200ms
+oomhero --warning 75 --critical 90 --loop-interval 200ms
 
 ```
 
 ## Options:
 ```
---warning <WARNING>                  Warning memory usage watermark [default: 75]
---critical <CRITICAL>                Critical memory usage watermark [default: 90]
---interval <INTERVAL>                How often scan all processes [default: 100ms]
---cooldown <COOLDOWN>                Interval between signals [default: 30s]
---warning-signal <WARNING_SIGNAL>    Signal send on warning [default: SIGUSR1]
---critical-signal <CRITICAL_SIGNAL>  Signal send on critical [default: SIGUSR2]
---version                            Print version
---verbose                            Set logging to verbose
---help                               Print help
+--warning <WARNING>                      Warning memory usage watermark [default: 75]
+--critical <CRITICAL>                    Critical memory usage watermark [default: 90]
+--loop-interval <LOOP_INTERVAL>          How often scan all processes [default: 100ms]
+--cooldown-interval <COOLDOWN_INTERVAL>  Interval between signals [default: 30s]
+--warning-signal <WARNING_SIGNAL>        Signal send on warning [default: SIGUSR1]
+--critical-signal <CRITICAL_SIGNAL>      Signal send on critical [default: SIGUSR2]
+--version                                Print version
+--verbose                                Set logging to verbose
+--help                                   Print help
 ```

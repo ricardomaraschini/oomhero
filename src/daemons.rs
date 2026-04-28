@@ -17,7 +17,7 @@ struct SignalRecord {
 // is just a loop that never returns and can be started by calling run(). important to note that
 // the daemon is very cpu intensive. the idea is that one would govern how fast it evaluates
 // memory usage by properly setting cpu limits on the pod where it is running. it is, by no means,
-// something to be used unbounded. signal_interval_secs governs how often we can send the same
+// something to be used unbounded. cooldown_interval_secs governs how often we can send the same
 // signal towards the same pid while last_signals keeps track of previously send signals. we limit
 // the historic data to 1_000 different pids, we do not expect this to ever go beyound this.
 pub struct Monitor<'a> {
@@ -28,32 +28,50 @@ pub struct Monitor<'a> {
     last_signals: Cache<i32, SignalRecord>,
     warning_signal: signal::Signal,
     critical_signal: signal::Signal,
-    signal_interval: time::Duration,
+    cooldown_interval: time::Duration,
 }
 
 impl<'a> Monitor<'a> {
     // new returns a new cgroups monitor. sink is used to send all events, warning and critical are
     // used to assess the memory usage while last_signals is used to keep track when was the last
     // time we signaled a process.
-    pub fn new(
-        sink: &'a events::Transmitter,
-        warning: f32,
-        critical: f32,
-        loop_interval: time::Duration,
-        signal_interval: time::Duration,
-        warning_signal: signal::Signal,
-        critical_signal: signal::Signal,
-    ) -> Self {
+    pub fn new(sink: &'a events::Transmitter, warning: f32, critical: f32) -> Self {
         Monitor {
             sink,
             warning,
             critical,
-            loop_interval,
-            signal_interval,
-            warning_signal,
-            critical_signal,
+            loop_interval: time::Duration::from_millis(100),
             last_signals: Cache::new(1_000),
+            warning_signal: signal::Signal::SIGUSR1,
+            critical_signal: signal::Signal::SIGUSR2,
+            cooldown_interval: time::Duration::from_secs(30),
         }
+    }
+
+    // with_loop_interval sets the interval used between the loops (the time between processes
+    // scans).
+    pub fn with_loop_interval(mut self, loop_interval: time::Duration) -> Self {
+        self.loop_interval = loop_interval;
+        self
+    }
+
+    // with_cooldown_interval sets the minimum time between sends of the same signal.
+    pub fn with_cooldown_interval(mut self, cooldown_interval: time::Duration) -> Self {
+        self.cooldown_interval = cooldown_interval;
+        self
+    }
+
+    // with_warning_signal sets the signal to be sent upon warning threshold cross.
+    pub fn with_warning_signal(mut self, warning_signal: signal::Signal) -> Self {
+        self.warning_signal = warning_signal;
+        self
+    }
+
+    // with_critical_signal sets the signal to be sent when a process crosses the critical
+    // watermark.
+    pub fn with_critical_signal(mut self, critical_signal: signal::Signal) -> Self {
+        self.critical_signal = critical_signal;
+        self
     }
 
     // run starts the process monitor. this function lists as processes on the system and evalutes
@@ -126,13 +144,14 @@ impl<'a> Monitor<'a> {
                 continue;
             }
 
-            last_pass = time::Instant::now();
             let per_second = passes / since_last_pass.as_secs() as i64;
             self.sink.send(
                 events::Event::default()
                     .with_priority(events::Priority::Low)
                     .with_message(format!("scans per second: {per_second}")),
             );
+
+            last_pass = time::Instant::now();
             passes = 0;
         }
     }
@@ -164,7 +183,7 @@ impl<'a> Monitor<'a> {
         if let Some(last_signal) = self.last_signals.get(&process.pid) {
             if last_signal.kind == sig {
                 let elapsed = time::Instant::now() - last_signal.when;
-                if elapsed < self.signal_interval {
+                if elapsed < self.cooldown_interval {
                     return;
                 }
             }

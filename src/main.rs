@@ -25,10 +25,10 @@ struct Arguments {
     critical: i32,
 
     #[arg(long, default_value = "100ms", help = "How often scan all processes", value_parser = parse_duration)]
-    interval: time::Duration,
+    loop_interval: time::Duration,
 
     #[arg(long, default_value = "30s", help = "Interval between signals", value_parser = parse_duration)]
-    cooldown: time::Duration,
+    cooldown_interval: time::Duration,
 
     #[arg(long, default_value = "SIGUSR1", help = "Signal send on warning")]
     warning_signal: signal::Signal,
@@ -68,7 +68,7 @@ fn environment_overwrites(args: &mut Arguments) {
 
     if let Ok(val) = env::var("COOLDOWN") {
         warn!("COOLDOWN env var is being deprecated (use flag)");
-        args.cooldown = parse_duration(&val).expect("parsing env var");
+        args.cooldown_interval = parse_duration(&val).expect("parsing env var");
     }
 
     if let Ok(val) = env::var("WARNING_SIGNAL") {
@@ -113,15 +113,11 @@ fn main() {
 
     thread::spawn(move || {
         let tx = events::Transmitter::new(tx);
-        let monitor = daemons::Monitor::new(
-            &tx,
-            args.warning as f32,
-            args.critical as f32,
-            args.interval,
-            args.cooldown,
-            args.warning_signal,
-            args.critical_signal,
-        );
+        let monitor = daemons::Monitor::new(&tx, args.warning as f32, args.critical as f32)
+            .with_cooldown_interval(args.cooldown_interval)
+            .with_loop_interval(args.loop_interval)
+            .with_warning_signal(args.warning_signal)
+            .with_critical_signal(args.critical_signal);
         monitor.run();
     });
 
@@ -155,24 +151,24 @@ fn main() {
 
 // banner prints the banner.
 fn banner() {
-    info!("┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐┌─┐     ");
-    info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │     ");
-    info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'    ");
-    info!(" ────                     ");
-    info!("compile information:      ");
-    info!("  commit_date:     {}     ", COMMIT_DATE);
-    info!("  commit_hash:     {}     ", COMMIT_HASH);
-    info!("  dirty:           {}     ", COMMIT_DIRTY);
+    info!("┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐┌─┐       ");
+    info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │       ");
+    info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'      ");
+    info!(" ────                       ");
+    info!("compile information:        ");
+    info!("  commit_date:       {}     ", COMMIT_DATE);
+    info!("  commit_hash:       {}     ", COMMIT_HASH);
+    info!("  dirty:             {}     ", COMMIT_DIRTY);
 }
 
 // active config prints the active configuration present int he arguments.
 fn active_config(args: &Arguments) {
-    info!("                          ");
-    info!("active config:            ");
-    info!("  warning:         {}%    ", args.warning);
-    info!("  critical:        {}%    ", args.critical);
-    info!("  interval:        {:?}   ", args.interval);
-    info!("  cooldown:        {:?}   ", args.cooldown);
-    info!("  warning_signal:  {:?}   ", args.warning_signal);
-    info!("  critical_signal: {:?}   ", args.critical_signal);
+    info!("                            ");
+    info!("active config:              ");
+    info!("  warning:           {}%    ", args.warning);
+    info!("  critical:          {}%    ", args.critical);
+    info!("  loop_interval:     {:?}   ", args.loop_interval);
+    info!("  cooldown_interval: {:?}   ", args.cooldown_interval);
+    info!("  warning_signal:    {:?}   ", args.warning_signal);
+    info!("  critical_signal:   {:?}   ", args.critical_signal);
 }

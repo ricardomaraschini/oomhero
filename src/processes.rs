@@ -15,7 +15,7 @@ pub struct Process {
 pub fn list() -> Result<Vec<Process>, Error> {
     let dir_entries = fs::read_dir("/proc")?;
 
-    let mut processes: Vec<Process> = Vec::new();
+    let mut processes: Vec<Process> = vec![];
     for tmp_entry in dir_entries {
         let entry = tmp_entry?;
 
