@@ -151,13 +151,14 @@ fn main() {
 
 // banner prints the banner.
 fn banner() {
+    let hash = &COMMIT_HASH.to_string()[0..10];
     info!("┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐┌─┐       ");
     info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │       ");
     info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'      ");
     info!(" ────                       ");
     info!("compile information:        ");
     info!("  commit_date:       {}     ", COMMIT_DATE);
-    info!("  commit_hash:       {}     ", COMMIT_HASH);
+    info!("  commit_hash:       {}     ", hash);
     info!("  dirty:             {}     ", COMMIT_DIRTY);
 }
 
