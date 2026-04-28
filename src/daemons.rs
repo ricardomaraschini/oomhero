@@ -133,6 +133,7 @@ impl<'a> Monitor<'a> {
                     .with_priority(events::Priority::Low)
                     .with_message(format!("scans per second: {per_second}")),
             );
+            passes = 0;
         }
     }
     // assess_process_usage reads the memory usage for the process and the limit, returns the usage
