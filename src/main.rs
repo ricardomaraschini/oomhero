@@ -38,6 +38,9 @@ struct Arguments {
 
     #[arg(long, default_value = "false", help = "Print version")]
     version: bool,
+
+    #[arg(long, default_value = "false", help = "Set logging to verbose")]
+    verbose: bool,
 }
 
 const COMMIT_DATE: &str = env!("VERGEN_GIT_COMMIT_DATE");
@@ -124,6 +127,15 @@ fn main() {
 
     let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
     for event in rx {
+        if args.verbose {
+            if let events::Priority::High = event.priority {
+                warn!("{:?}", event);
+                continue;
+            }
+            info!("{:?}", event);
+            continue;
+        }
+
         if let events::Priority::High = event.priority {
             last_messages.insert(event.pid, event.clone());
             warn!("{:?}", event);
