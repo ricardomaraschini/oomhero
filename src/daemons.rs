@@ -3,6 +3,7 @@ use super::events;
 use super::processes;
 use moka::sync::Cache;
 use nix::sys::signal;
+use std::process;
 use std::thread;
 use std::time;
 
@@ -82,6 +83,7 @@ impl<'a> Monitor<'a> {
     // you better set proper resource.limits.cpu values as that is what guides how often we run the
     // loops.
     pub fn run(&self) {
+        let oomhero_pid = process::id() as i32;
         let mut last_pass = time::Instant::now();
         let mut passes: i64 = 0;
         loop {
@@ -100,8 +102,8 @@ impl<'a> Monitor<'a> {
             };
 
             for process in processes {
-                // skip pause container.
-                if process.pid == 1 {
+                // skip pause container and our own process.
+                if process.pid == 1 || process.pid == oomhero_pid {
                     continue;
                 }
 
