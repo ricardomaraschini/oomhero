@@ -53,3 +53,33 @@ pub fn path_to_memory_current(pid: i32) -> Result<String, Error> {
     };
     Ok(path)
 }
+
+// path_for_memory_pressure returns the path from where to read the memory pressure information.
+// this is not supported on cgroups v1 (it might be but it is not coded here).
+pub fn path_for_memory_pressure(pid: i32) -> Result<String, Error> {
+    let version = version()?;
+    if let CGroupsVersions::CGroupsV1 = version {
+        return Err(Error::Message(format!("pressure not supported on v1")));
+    };
+    Ok(format!("/proc/{}/root/sys/fs/cgroup/memory.pressure", pid))
+}
+
+// path_for_io_pressure returns the path from where to read the io pressure information. this is
+// not supported on cgroups v1 (it might be but it is not coded here).
+pub fn path_for_io_pressure(pid: i32) -> Result<String, Error> {
+    let version = version()?;
+    if let CGroupsVersions::CGroupsV1 = version {
+        return Err(Error::Message(format!("pressure not supported on v1")));
+    };
+    Ok(format!("/proc/{}/root/sys/fs/cgroup/io.pressure", pid))
+}
+
+// path_for_cpu_pressure returns the path from where to read the io pressure information. this is
+// not supported on cgroups v1 (it might be but it is not coded here).
+pub fn path_for_cpu_pressure(pid: i32) -> Result<String, Error> {
+    let version = version()?;
+    if let CGroupsVersions::CGroupsV1 = version {
+        return Err(Error::Message(format!("pressure not supported on v1")));
+    };
+    Ok(format!("/proc/{}/root/sys/fs/cgroup/cpu.pressure", pid))
+}

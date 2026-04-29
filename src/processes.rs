@@ -2,11 +2,42 @@ use super::errors::Error;
 use nix::sys::signal;
 use nix::unistd;
 use std::fs;
+use std::io;
+use std::io::BufRead;
+use std::str;
+
+// PressureData keeps track of the presssure as reported by kernel psi. For further information
+// see https://docs.kernel.org/accounting/psi.html.
+#[derive(Debug, Default)]
+pub struct PressureData {
+    pub some: PressureAverages,
+    pub full: PressureAverages,
+}
+
+// PressureAverages keeps the averages for 10, 60 and 300 data as present in the kernel psi file.
+// the total, also present in the file, is also kept here.
+#[derive(Debug, Default)]
+pub struct PressureAverages {
+    pub avg10: f32,
+    pub avg60: f32,
+    pub avg300: f32,
+    pub total: f32,
+}
+
+// Pressure gather all the pressure data we read for each single process.
+#[derive(Debug, Default)]
+pub struct Pressure {
+    pub memory: PressureData,
+    pub cpu: PressureData,
+    pub io: PressureData,
+}
 
 // Process holds information about a specific process running on the system.
+#[derive(Debug, Default)]
 pub struct Process {
     pub pid: i32,
     pub cmdline: String,
+    pub pressure: Pressure,
 }
 
 // list processes entries under the /proc filesystem and returns a list of pids. Due to the nature
@@ -42,14 +73,85 @@ pub fn list() -> Result<Vec<Process>, Error> {
             continue;
         };
 
-        let Ok(cmdline) = cmdline(pid) else {
-            continue;
-        };
-
-        processes.push(Process { pid, cmdline });
+        processes.push(Process {
+            pid,
+            cmdline: cmdline(pid).unwrap_or_default(),
+            pressure: Pressure {
+                memory: memory_pressure(pid).unwrap_or_default(),
+                cpu: cpu_pressure(pid).unwrap_or_default(),
+                io: io_pressure(pid).unwrap_or_default(),
+            },
+        });
     }
 
     Ok(processes)
+}
+
+// cpu_pressure reads and parses the cpu pressure (psi) for the provided pid.
+pub fn cpu_pressure(pid: i32) -> Result<PressureData, Error> {
+    let path = super::cgroups::path_for_cpu_pressure(pid)?;
+    return parse_pressure_data_file(path);
+}
+
+// io_pressure reads and parses the io pressure (psi) for the provided pid.
+pub fn io_pressure(pid: i32) -> Result<PressureData, Error> {
+    let path = super::cgroups::path_for_io_pressure(pid)?;
+    return parse_pressure_data_file(path);
+}
+
+// memory_pressure reads and parses the memory pressure (psi) for the provided pid.
+pub fn memory_pressure(pid: i32) -> Result<PressureData, Error> {
+    let path = super::cgroups::path_for_memory_pressure(pid)?;
+    return parse_pressure_data_file(path);
+}
+
+// parse_pressure_data_file parses a kernel psi file, the file format is as follow:
+//
+// some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+// full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+fn parse_pressure_data_file(path: String) -> Result<PressureData, Error> {
+    let mut result = PressureData::default();
+    let fp = fs::File::open(path)?;
+
+    for line in io::BufReader::new(fp).lines() {
+        let line = line?;
+        let mut tokens = line.trim().split_whitespace();
+
+        let averages = match tokens.next() {
+            Some("some") => &mut result.some,
+            Some("full") => &mut result.full,
+            None => continue,
+            Some(other) => return Err(Error::Message(format!("unknown field {}", other))),
+        };
+
+        parse_pressure_averages(tokens, averages)?;
+    }
+
+    Ok(result)
+}
+
+// parse_pressure_averages parses a list of tokens similar to the following:
+// avg10=0.00 avg60=0.00 avg300=0.00 total=0
+// The provided iterator should iterate over the string splitted by the white space. Data is
+// parsed and then populated in the provided mutable PressureAverages.
+fn parse_pressure_averages<'a>(
+    tokens: str::SplitWhitespace<'a>,
+    averages: &mut PressureAverages,
+) -> Result<(), Error> {
+    for token in tokens {
+        let parts: Vec<&str> = token.split("=").collect();
+        if parts.len() != 2 {
+            continue;
+        }
+        match parts[0] {
+            "avg10" => averages.avg10 = parts[1].parse()?,
+            "avg60" => averages.avg60 = parts[1].parse()?,
+            "avg300" => averages.avg300 = parts[1].parse()?,
+            "total" => averages.total = parts[1].parse()?,
+            _ => return Err(Error::Message(format!("unknown field {}", parts[0]))),
+        }
+    }
+    Ok(())
 }
 
 // memory_stats returns stats about memory utilization for the provided process id. values are

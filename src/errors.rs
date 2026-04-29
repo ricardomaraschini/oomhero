@@ -15,4 +15,10 @@ pub enum Error {
 
     #[error(transparent)]
     ParseIntError(#[from] num::ParseIntError),
+
+    #[error(transparent)]
+    ParseFloatError(#[from] num::ParseFloatError),
+
+    #[error("{0}")]
+    Message(String),
 }
