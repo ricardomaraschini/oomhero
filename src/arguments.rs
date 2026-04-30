@@ -17,7 +17,10 @@ A lightweight Kubernetes sidecar that monitors process resource usage and pressu
 configurable signals to applications before resource exhaustion occurs. OOMHero runs alongside your
 application containers in Kubernetes pods, continuously monitoring memory usage, memory pressure,
 I/O pressure, and CPU pressure. When processes approach configurable thresholds, OOMHero sends Unix
-signals to enable proactive remediation before the OOMKiller terminates your application.";
+signals to enable proactive remediation before the OOMKiller terminates your application.
+
+For Kernel pressure information please visit https://docs.kernel.org/accounting/psi.html.
+";
 
 #[derive(Parser, Debug)]
 #[command(name = "oomhero")]
@@ -164,18 +167,10 @@ pub struct Thresholds {
     )]
     pub cpu_pressure_critical: i32,
 
-    #[arg(
-        long,
-        default_value = "full",
-        help = "The stall severity level to use, see kernel documentation for details"
-    )]
+    #[arg(long, default_value = "full", help = "The stall severity level to use")]
     pub stall_severity: StallSeverity,
 
-    #[arg(
-        long,
-        default_value = "avg10",
-        help = "The stall window to use, see kernel documentation for details"
-    )]
+    #[arg(long, default_value = "avg10", help = "The stall window to use")]
     pub stall_window: StallWindow,
 }
 
