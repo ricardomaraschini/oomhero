@@ -1,5 +1,6 @@
 use clap::Parser;
 use duration_str;
+use log::debug;
 use log::info;
 use log::warn;
 use moka::sync::Cache;
@@ -16,7 +17,7 @@ use std::sync;
 use std::thread;
 use std::time;
 
-#[derive(Parser)]
+#[derive(Parser, Debug)]
 struct Arguments {
     #[arg(
         long,
@@ -51,9 +52,6 @@ struct Arguments {
     #[arg(long, default_value = "false", help = "Print version")]
     version: bool,
 
-    #[arg(long, default_value = "false", help = "Set logging to verbose")]
-    verbose: bool,
-
     #[command(flatten)]
     thresholds: thresholds::UserProvided,
 }
@@ -87,7 +85,7 @@ fn main() {
     }
 
     banner();
-    active_config(&args);
+    info!("{:?}", &args);
 
     let mut incoming_signals =
         Signals::new([SIGINT, SIGTERM]).expect("failed to setup signal handlers");
@@ -112,15 +110,7 @@ fn main() {
 
     let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
     for event in rx {
-        if args.verbose {
-            if let events::Priority::High = event.priority {
-                warn!("{:?}", event);
-                continue;
-            }
-            info!("{:?}", event);
-            continue;
-        }
-
+        debug!("{:?}", &event);
         if let events::Priority::High = event.priority {
             last_messages.insert(event.pid, event.clone());
             warn!("{:?}", event);
@@ -141,6 +131,7 @@ fn main() {
 // banner prints the banner.
 fn banner() {
     let hash = &COMMIT_HASH.to_string()[0..10];
+    info!("                              ");
     info!("┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐┌─┐         ");
     info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │         ");
     info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'        ");
@@ -148,48 +139,5 @@ fn banner() {
     info!(" commit date:              {} ", COMMIT_DATE);
     info!(" commit hash:              {} ", hash);
     info!(" dirty:                    {} ", COMMIT_DIRTY);
-}
-
-// active config prints the active configuration present int he arguments.
-fn active_config(args: &Arguments) {
-    let t = &args.thresholds;
-    let memusage = t.has_memory_usage_threholds();
-    let mempress = t.has_memory_pressure_thresholds();
-    let iopress = t.has_io_pressure_thresholds();
-    let cpupress = t.has_cpu_pressure_thresholds();
-
-    info!("");
-    info!("general config:");
-    info!(" loop interval:           {:?}", args.loop_interval);
-    info!(" cooldown interval:       {:?}", args.cooldown_interval);
-    info!(" warning signal:          {:?}", args.warning_signal);
-    info!(" critical signal:         {:?}", args.critical_signal);
-    if mempress || iopress || cpupress {
-        info!(" stall severity:          {:?}", t.stall_severity);
-        info!(" stall window:            {:?}", t.stall_window);
-    }
-
-    info!("");
-    info!("enabled checks:");
-    if memusage {
-        info!(" memory usage:");
-        info!("  memory usage_warning:    {}%", t.memory_usage_warning);
-        info!("  memory usage_critical:   {}%", t.memory_usage_critical);
-    }
-    if mempress {
-        info!(" memory pressure:");
-        info!("  memory pressure warning: {}%", t.memory_pressure_warning);
-        info!("  memory pressure critical:{}%", t.memory_pressure_critical);
-    }
-    if iopress {
-        info!(" io pressure:");
-        info!("  io pressure warning:     {}%", t.io_pressure_warning);
-        info!("  io pressure critical:    {}%", t.io_pressure_critical);
-    }
-    if cpupress {
-        info!(" cpu pressure:");
-        info!("  cpu pressure warning:    {}%", t.cpu_pressure_warning);
-        info!("  cpu pressure critical    {}%", t.cpu_pressure_critical);
-    }
     info!("                              ");
 }
