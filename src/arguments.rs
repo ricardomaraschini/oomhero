@@ -6,7 +6,22 @@ use nix::sys::signal;
 use std::fmt;
 use std::time;
 
+const ABOUT: &str = "
+   ,.   (   .      )        .
+  ('     )  )'     ,'
+.; )  '▌(( (' )    ;(,  ,' ((
+▛▌▛▌▛▛▌▛▌█▌▛▘▛▌(..,( . )_  _'
+▙▌▙▌▌▌▌▌▌▙▖▌ ▙▌
+
+A lightweight Kubernetes sidecar that monitors process resource usage and pressure metrics, sending
+configurable signals to applications before resource exhaustion occurs. OOMHero runs alongside your
+application containers in Kubernetes pods, continuously monitoring memory usage, memory pressure,
+I/O pressure, and CPU pressure. When processes approach configurable thresholds, OOMHero sends Unix
+signals to enable proactive remediation before the OOMKiller terminates your application.";
+
 #[derive(Parser, Debug)]
+#[command(name = "oomhero")]
+#[command(about = ABOUT)]
 pub struct Flags {
     #[arg(
         long,
