@@ -106,23 +106,23 @@ pub struct UserProvided {
 impl UserProvided {
     // has_memory_usage_threholds returns true if warning and critical thresholds are set for
     // memory usage.
-    pub fn has_memory_usage_threholds(&self) -> bool {
+    fn has_memory_usage_threholds(&self) -> bool {
         self.memory_usage_warning > 0 && self.memory_usage_critical > 0
     }
 
     // has_memory_pressure_thresholds returns true if warning and critical thresholds are set
     // for memory pressure.
-    pub fn has_memory_pressure_thresholds(&self) -> bool {
+    fn has_memory_pressure_thresholds(&self) -> bool {
         self.memory_pressure_warning > 0 && self.memory_pressure_critical > 0
     }
 
     // has_io_pressure_thresholds returns true if we have warning and critical for io pressure.
-    pub fn has_io_pressure_thresholds(&self) -> bool {
+    fn has_io_pressure_thresholds(&self) -> bool {
         self.io_pressure_warning > 0 && self.io_pressure_critical > 0
     }
 
     // has_cpu_pressure_thresholds returns true if we have warning and critical for cpu pressure.
-    pub fn has_cpu_pressure_thresholds(&self) -> bool {
+    fn has_cpu_pressure_thresholds(&self) -> bool {
         self.cpu_pressure_warning > 0 && self.cpu_pressure_critical > 0
     }
 
