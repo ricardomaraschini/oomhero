@@ -1,6 +1,6 @@
-use super::errors::Error;
 use super::events;
 use super::processes;
+use super::thresholds;
 use moka::sync::Cache;
 use nix::sys::signal;
 use std::process;
@@ -23,8 +23,7 @@ struct SignalRecord {
 // the historic data to 1_000 different pids, we do not expect this to ever go beyound this.
 pub struct Monitor<'a> {
     sink: &'a events::Transmitter,
-    warning: f32,
-    critical: f32,
+    thresholds: &'a thresholds::UserProvided,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
     warning_signal: signal::Signal,
@@ -36,11 +35,10 @@ impl<'a> Monitor<'a> {
     // new returns a new cgroups monitor. sink is used to send all events, warning and critical are
     // used to assess the memory usage while last_signals is used to keep track when was the last
     // time we signaled a process.
-    pub fn new(sink: &'a events::Transmitter, warning: f32, critical: f32) -> Self {
+    pub fn new(sink: &'a events::Transmitter, thresholds: &'a thresholds::UserProvided) -> Self {
         Monitor {
             sink,
-            warning,
-            critical,
+            thresholds,
             loop_interval: time::Duration::from_millis(100),
             last_signals: Cache::new(1_000),
             warning_signal: signal::Signal::SIGUSR1,
@@ -76,12 +74,12 @@ impl<'a> Monitor<'a> {
     }
 
     // run starts the process monitor. this function lists as processes on the system and evalutes
-    // their memory usage. signals are sent to the processes crossing the warning and critical
-    // watermarks. it is important for the caller to constantly read from the sender passed in as
-    // errors are send as messages through it. this function never returns. also important to know that
-    // this function has just a very small sleep between interactions so when running this on a cluster
-    // you better set proper resource.limits.cpu values as that is what guides how often we run the
-    // loops.
+    // their memory and pressure data. signals are sent to the processes crossing the warning and
+    // critical watermarks. it is important for the caller to constantly read from the sender
+    // passed in as errors are send as messages through it. this function never returns. also
+    // important to know that this function has just a very small sleep between interactions so
+    // when running this on a cluster you better set proper resource.limits.cpu values as that is
+    // what guides how often we run the loops.
     pub fn run(&self) {
         let oomhero_pid = process::id() as i32;
         let mut last_pass = time::Instant::now();
@@ -107,7 +105,7 @@ impl<'a> Monitor<'a> {
                     continue;
                 }
 
-                let usage = match self.assess_process_usage(process.pid) {
+                let cd = match processes::collect_process_data(process.pid) {
                     Ok(usage) => usage,
                     Err(err) => {
                         self.sink.send(
@@ -115,18 +113,18 @@ impl<'a> Monitor<'a> {
                                 .with_cmdline(process.cmdline)
                                 .with_pid(process.pid)
                                 .with_priority(events::Priority::Low)
-                                .with_message(format!("error reading memory usage: {err}")),
+                                .with_message(format!("error collecting process data: {err}")),
                         );
                         continue;
                     }
                 };
 
-                if usage >= self.critical {
-                    self.send_signal(&process, self.critical_signal, usage, "critical");
+                let (warning, critical) = self.thresholds.check_against(&cd);
+                if critical {
+                    self.send_signal(&process, self.critical_signal, &cd, "critical");
                     continue;
-                }
-                if usage >= self.warning {
-                    self.send_signal(&process, self.warning_signal, usage, "warning");
+                } else if warning {
+                    self.send_signal(&process, self.warning_signal, &cd, "warning");
                     continue;
                 }
 
@@ -135,8 +133,8 @@ impl<'a> Monitor<'a> {
                         .with_cmdline(process.cmdline)
                         .with_pid(process.pid)
                         .with_priority(events::Priority::Low)
-                        .with_memory_usage(usage)
-                        .with_message(format!("memory usage within limits")),
+                        .with_collected_data(&cd)
+                        .with_message(format!("process usage within limits")),
                 );
             }
 
@@ -157,20 +155,6 @@ impl<'a> Monitor<'a> {
             passes = 0;
         }
     }
-    // assess_process_usage reads the memory usage for the process and the limit, returns the usage
-    // expressed as percent of the total utilization. if the pid has no max limit for memory usage
-    // this function returns 0% as usage.
-    fn assess_process_usage(&self, pid: i32) -> Result<f32, Error> {
-        let has_limit = processes::has_memory_limit(pid)?;
-        if has_limit == false {
-            return Ok(0.0);
-        }
-        let mem_stats = processes::memory_stats(pid)?;
-        let cur = mem_stats.0 as f32;
-        let max = mem_stats.1 as f32;
-        let usage: f32 = cur / max * 100.;
-        Ok(usage)
-    }
 
     // send_signal sends the provided signal to the provided process. this function also generate an
     // event either in case of success or failure. This function also accepts a description for the
@@ -179,7 +163,7 @@ impl<'a> Monitor<'a> {
         &self,
         process: &processes::Process,
         sig: signal::Signal,
-        usage: f32,
+        cd: &processes::CollectedData,
         desc: &str,
     ) {
         if let Some(last_signal) = self.last_signals.get(&process.pid) {
@@ -195,10 +179,10 @@ impl<'a> Monitor<'a> {
             self.sink.send(
                 events::Event::default()
                     .with_priority(events::Priority::High)
-                    .with_message(format!("fail sending {desc} signal: {err}"))
-                    .with_memory_usage(usage)
                     .with_pid(process.pid)
-                    .with_cmdline(process.cmdline.clone()),
+                    .with_cmdline(process.cmdline.clone())
+                    .with_collected_data(&cd)
+                    .with_message(format!("fail sending {desc} signal: {err}")),
             );
             return;
         }
@@ -214,10 +198,10 @@ impl<'a> Monitor<'a> {
         self.sink.send(
             events::Event::default()
                 .with_priority(events::Priority::High)
-                .with_message(format!("{desc} signal sent successfully"))
-                .with_memory_usage(usage)
                 .with_pid(process.pid)
-                .with_cmdline(process.cmdline.clone()),
+                .with_cmdline(process.cmdline.clone())
+                .with_collected_data(&cd)
+                .with_message(format!("{desc} signal sent successfully")),
         );
     }
 }

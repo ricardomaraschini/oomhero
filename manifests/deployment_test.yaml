@@ -27,6 +27,9 @@ spec:
   - name: oomhero
     image: docker.io/ricardomaraschini/oomhero:v2
     imagePullPolicy: Always
+    args:
+    - --memory-usage-warning=80
+    - --memory-usage-critical=90
     resources:
       limits:
         cpu: "10m"

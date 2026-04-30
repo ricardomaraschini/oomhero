@@ -1,3 +1,4 @@
+use super::processes;
 use log::warn;
 use std::cmp::Ordering;
 use std::sync::mpsc;
@@ -10,8 +11,11 @@ pub struct Event {
     pub pid: i32,
     pub message: String,
     pub priority: Priority,
-    pub memory_usage: f32,
     pub cmdline: String,
+    pub memory_usage: f32,
+    pub memory_pressure: f32,
+    pub io_pressure: f32,
+    pub cpu_pressure: f32,
 }
 
 // Priority determines how relevant an event on the system is. receivers of such events should
@@ -27,10 +31,13 @@ impl Event {
     pub fn default() -> Self {
         Event {
             pid: 0,
+            cmdline: String::new(),
             message: String::new(),
             priority: Priority::Low,
             memory_usage: 0.0,
-            cmdline: String::new(),
+            memory_pressure: 0.0,
+            io_pressure: 0.0,
+            cpu_pressure: 0.0,
         }
     }
 
@@ -58,17 +65,53 @@ impl Event {
         self
     }
 
+    // with_memory_pressure sets the memory pressure counter inside the event.
+    pub fn with_memory_pressure(mut self, pressure: f32) -> Self {
+        self.memory_pressure = pressure;
+        self
+    }
+
+    // with_io_pressure sets the io pressure counter inside the event.
+    pub fn with_io_pressure(mut self, pressure: f32) -> Self {
+        self.io_pressure = pressure;
+        self
+    }
+
+    // with_cpu_pressure sets the cpu pressure counter inside the event.
+    pub fn with_cpu_pressure(mut self, pressure: f32) -> Self {
+        self.cpu_pressure = pressure;
+        self
+    }
+
     // with_cmdline sets the cmdline property of an event.
     pub fn with_cmdline(mut self, cmdline: String) -> Self {
         self.cmdline = cmdline;
         self
     }
 
+    // with_collected_data adds all collected data struct to the event.
+    pub fn with_collected_data(self, cd: &processes::CollectedData) -> Self {
+        self.with_memory_usage(cd.memory_usage())
+            .with_memory_pressure(cd.pressure.memory.full.avg10)
+            .with_io_pressure(cd.pressure.io.full.avg10)
+            .with_cpu_pressure(cd.pressure.cpu.full.avg10)
+    }
+
     // deviates_significantly indicates if the current event differs enough to deserve to be acted
     // upon. for example: if the usage differs more than 10% we return true. used on the system to
-    // determine if an event deserves to be printed.
+    // determine if an event deserves to be logged.
     pub fn deviates_significantly(&self, from: &Event) -> bool {
-        if (self.memory_usage - from.memory_usage).abs() > 10_f32 {
+        let max = 10_f32;
+        if (self.memory_usage - from.memory_usage).abs() > max {
+            return true;
+        }
+        if (self.memory_pressure - from.memory_pressure).abs() > max {
+            return true;
+        }
+        if (self.io_pressure - from.io_pressure).abs() > max {
+            return true;
+        }
+        if (self.cpu_pressure - from.cpu_pressure).abs() > max {
             return true;
         }
         if let Ordering::Equal = self.message.cmp(&from.message) {
