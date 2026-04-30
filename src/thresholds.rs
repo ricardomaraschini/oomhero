@@ -4,15 +4,17 @@ use clap::Parser;
 use clap::ValueEnum;
 
 // StallSeverity holds both severities as presented by the kernel on a pressure file.
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
 pub enum StallSeverity {
+    #[default]
     Some,
     Full,
 }
 
 // StallWindow holds all windows across the kernel keeps track of a resource pressure.
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum, Default)]
 pub enum StallWindow {
+    #[default]
     Avg10,
     Avg60,
     Avg300,
@@ -20,7 +22,7 @@ pub enum StallWindow {
 
 // UserProvided holds all thresholds supported by the monitor that can be customized by the user.
 // this struct is tailored to be used with the clap crate (allows for user provided data).
-#[derive(Parser, Clone, Debug)]
+#[derive(Parser, Clone, Debug, Default)]
 pub struct UserProvided {
     #[arg(
         long,
