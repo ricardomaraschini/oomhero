@@ -2,6 +2,67 @@ use super::errors::Error;
 use super::processes;
 use clap::Parser;
 use clap::ValueEnum;
+use nix::sys::signal;
+use std::fmt;
+use std::time;
+
+#[derive(Parser, Debug)]
+pub struct Flags {
+    #[arg(
+        long,
+        default_value = "100ms",
+        value_parser = parse_duration,
+        help = "Interval to be used as a pause between process scans"
+    )]
+    pub loop_interval: time::Duration,
+
+    #[arg(
+        long,
+        default_value = "30s",
+        value_parser = parse_duration,
+        help = "Interval to wait before sending the same signal to the same process"
+    )]
+    pub cooldown_interval: time::Duration,
+
+    #[arg(
+        long,
+        default_value = "SIGUSR1",
+        help = "Signal to be send when a process crosses the warning watermark"
+    )]
+    pub warning_signal: signal::Signal,
+
+    #[arg(
+        long,
+        default_value = "SIGUSR2",
+        help = "Signal to be send when a process crosses the critical watermark"
+    )]
+    pub critical_signal: signal::Signal,
+
+    #[arg(long, default_value = "false", help = "Print version")]
+    pub version: bool,
+
+    #[command(flatten)]
+    pub thresholds: Thresholds,
+}
+
+impl fmt::Display for Flags {
+    fn fmt(&self, fp: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(fp, "loop:{:?} ", self.loop_interval)?;
+        write!(fp, "cooldown:{:?} ", self.cooldown_interval)?;
+        write!(
+            fp,
+            "signals:{:?},{:?} ",
+            self.warning_signal, self.critical_signal
+        )?;
+        write!(fp, "{}", self.thresholds)?;
+        Ok(())
+    }
+}
+
+// parse_duration is used to parse the interval command line flag.
+fn parse_duration(s: &str) -> Result<time::Duration, String> {
+    duration_str::parse(s).map_err(|e| e.to_string())
+}
 
 // StallSeverity holds both severities as presented by the kernel on a pressure file.
 #[derive(Debug, Clone, Copy, ValueEnum, Default)]
@@ -20,10 +81,10 @@ pub enum StallWindow {
     Avg300,
 }
 
-// UserProvided holds all thresholds supported by the monitor that can be customized by the user.
-// this struct is tailored to be used with the clap crate (allows for user provided data).
+// Thresholds holds all thresholds supported by the monitor that can be customized by the user.
+// This struct is tailored to be used with the clap crate (allows for user provided data).
 #[derive(Parser, Clone, Debug, Default)]
-pub struct UserProvided {
+pub struct Thresholds {
     #[arg(
         long,
         default_value = "0",
@@ -103,7 +164,7 @@ pub struct UserProvided {
     pub stall_window: StallWindow,
 }
 
-impl UserProvided {
+impl Thresholds {
     // has_memory_usage_threholds returns true if warning and critical thresholds are set for
     // memory usage.
     fn has_memory_usage_threholds(&self) -> bool {
@@ -203,5 +264,52 @@ impl UserProvided {
         }
 
         (warning, critical)
+    }
+}
+
+impl fmt::Display for Thresholds {
+    fn fmt(&self, fp: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        if self.has_memory_usage_threholds() {
+            write!(
+                fp,
+                "memory_usage:{},{} ",
+                self.memory_usage_warning, self.memory_usage_critical
+            )?;
+        }
+
+        let mut has_pressure = false;
+        if self.has_memory_pressure_thresholds() {
+            has_pressure = true;
+            write!(
+                fp,
+                "memory_pressure:{},{} ",
+                self.memory_pressure_warning, self.memory_pressure_critical
+            )?;
+        }
+
+        if self.has_io_pressure_thresholds() {
+            has_pressure = true;
+            write!(
+                fp,
+                "io_pressure:{},{} ",
+                self.io_pressure_warning, self.io_pressure_critical
+            )?;
+        }
+
+        if self.has_cpu_pressure_thresholds() {
+            has_pressure = true;
+            write!(
+                fp,
+                "cpu_pressure:{},{} ",
+                self.cpu_pressure_warning, self.cpu_pressure_critical
+            )?;
+        }
+
+        if has_pressure {
+            write!(fp, "stall_severity:{:?} ", self.stall_severity)?;
+            write!(fp, "stall_window:{:?} ", self.stall_window)?;
+        }
+
+        Ok(())
     }
 }

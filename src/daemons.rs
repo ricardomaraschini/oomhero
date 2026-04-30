@@ -1,6 +1,6 @@
+use super::arguments;
 use super::events;
 use super::processes;
-use super::thresholds;
 use moka::sync::Cache;
 use nix::sys::signal;
 use std::process;
@@ -23,7 +23,7 @@ struct SignalRecord {
 // the historic data to 1_000 different pids, we do not expect this to ever go beyond this.
 pub struct Monitor<'a> {
     sink: &'a events::Transmitter,
-    thresholds: &'a thresholds::UserProvided,
+    thresholds: &'a arguments::Thresholds,
     processes_discover: &'a dyn processes::ProcessProvider,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
@@ -38,7 +38,7 @@ impl<'a> Monitor<'a> {
     // time we signaled a process.
     pub fn new(
         sink: &'a events::Transmitter,
-        thresholds: &'a thresholds::UserProvided,
+        thresholds: &'a arguments::Thresholds,
         processes_discover: &'a impl processes::ProcessProvider,
     ) -> Self {
         Monitor {

@@ -1,15 +1,13 @@
 use clap::Parser;
-use duration_str;
 use log::info;
 use log::trace;
 use log::warn;
 use moka::sync::Cache;
-use nix::sys::signal;
+use oomhero::arguments;
 use oomhero::cgroups;
 use oomhero::daemons;
 use oomhero::events;
 use oomhero::processes;
-use oomhero::thresholds;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
@@ -17,55 +15,10 @@ use std::env;
 use std::process;
 use std::sync;
 use std::thread;
-use std::time;
-
-#[derive(Parser, Debug)]
-struct Arguments {
-    #[arg(
-        long,
-        default_value = "100ms",
-        value_parser = parse_duration,
-        help = "Interval to be used as a pause between process scans"
-    )]
-    loop_interval: time::Duration,
-
-    #[arg(
-        long,
-        default_value = "30s",
-        value_parser = parse_duration,
-        help = "Interval to wait before sending the same signal to the same process"
-    )]
-    cooldown_interval: time::Duration,
-
-    #[arg(
-        long,
-        default_value = "SIGUSR1",
-        help = "Signal to be send when a process crosses the warning watermark"
-    )]
-    warning_signal: signal::Signal,
-
-    #[arg(
-        long,
-        default_value = "SIGUSR2",
-        help = "Signal to be send when a process crosses the critical watermark"
-    )]
-    critical_signal: signal::Signal,
-
-    #[arg(long, default_value = "false", help = "Print version")]
-    version: bool,
-
-    #[command(flatten)]
-    thresholds: thresholds::UserProvided,
-}
 
 const COMMIT_DATE: &str = env!("VERGEN_GIT_COMMIT_DATE");
 const COMMIT_HASH: &str = env!("VERGEN_GIT_SHA");
 const COMMIT_DIRTY: &str = env!("VERGEN_GIT_DIRTY");
-
-// parse_duration is used to parse the interval command line flag.
-fn parse_duration(s: &str) -> Result<time::Duration, String> {
-    duration_str::parse(s).map_err(|e| e.to_string())
-}
 
 fn main() {
     if env::var("RUST_LOG").is_err() {
@@ -75,19 +28,19 @@ fn main() {
     }
 
     env_logger::init();
-    let args = Arguments::parse();
-    if args.version {
+    let flags = arguments::Flags::parse();
+    if flags.version {
         banner();
         return;
     }
 
-    if let Err(err) = args.thresholds.validate() {
+    if let Err(err) = flags.thresholds.validate() {
         warn!("{:?}", err);
         process::exit(1);
     }
 
     banner();
-    info!("{:?}", &args);
+    info!("config: {}", &flags);
 
     let mut incoming_signals =
         Signals::new([SIGINT, SIGTERM]).expect("failed to setup signal handlers");
@@ -105,11 +58,11 @@ fn main() {
         let processes_explorer = processes::ProcFsReader::new(&syscgroups);
 
         let tx = events::Transmitter::new(tx);
-        let monitor = daemons::Monitor::new(&tx, &args.thresholds, &processes_explorer)
-            .with_cooldown_interval(args.cooldown_interval)
-            .with_loop_interval(args.loop_interval)
-            .with_warning_signal(args.warning_signal)
-            .with_critical_signal(args.critical_signal);
+        let monitor = daemons::Monitor::new(&tx, &flags.thresholds, &processes_explorer)
+            .with_cooldown_interval(flags.cooldown_interval)
+            .with_loop_interval(flags.loop_interval)
+            .with_warning_signal(flags.warning_signal)
+            .with_critical_signal(flags.critical_signal);
         monitor.run();
     });
 
