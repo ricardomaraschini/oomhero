@@ -130,14 +130,18 @@ fn main() {
 
 // banner prints the banner.
 fn banner() {
-    let hash = &COMMIT_HASH.to_string()[0..10];
+    let hash = &COMMIT_HASH.to_string()[0..6];
+    let mut version = format!("{}-{}", COMMIT_DATE, hash);
+    if COMMIT_DIRTY == "true" {
+        version = format!("{}-dirty", version);
+    }
+
     info!("                              ");
-    info!("┌─┐┌─┐┌┬┐┬ ┬┌─┐┬─┐┌─┐         ");
-    info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │         ");
-    info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'        ");
-    info!(" ────                         ");
-    info!(" commit date:              {} ", COMMIT_DATE);
-    info!(" commit hash:              {} ", hash);
-    info!(" dirty:                    {} ", COMMIT_DIRTY);
+    info!("    ,.   (   .      )        .");
+    info!("   ('     )  )'     ,'        ");
+    info!(" .; )  '▌(( (' )    ;(,  ,' ((");
+    info!(" ▛▌▛▌▛▛▌▛▌█▌▛▘▛▌(..,( . )_  _'");
+    info!(" ▙▌▙▌▌▌▌▌▌▙▖▌ ▙▌              ");
+    info!("                v{}           ", version);
     info!("                              ");
 }
