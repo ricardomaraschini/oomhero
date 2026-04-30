@@ -1,13 +1,5 @@
 # OOMHero
 
-```
-   ,.   (   .      )        .
-  ('     )  )'     ,'
-.; )  '▌(( (' )    ;(,  ,' ((
-▛▌▛▌▛▛▌▛▌█▌▛▘▛▌(..,( . )_  _'
-▙▌▙▌▌▌▌▌▌▙▖▌ ▙▌
-```
-
 A lightweight Kubernetes sidecar that monitors process resource usage and
 pressure metrics, sending configurable signals to applications before resource
 exhaustion occurs.
