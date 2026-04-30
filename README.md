@@ -50,6 +50,21 @@ OOMHero leverages Linux PSI metrics to detect resource contention:
 These metrics provide early warning of resource saturation before hard limits
 are hit.
 
+#### PSI Configuration
+
+PSI metrics can be fine-tuned using two parameters:
+
+- **Stall Severity** (`--stall-severity`):
+  - `some`: Measures time when *at least one* task is stalled on a resource
+  - `full`: Measures time when *all non-idle* tasks are stalled (default)
+  - Use `some` for earlier warnings, `full` for more severe conditions
+
+- **Stall Window** (`--stall-window`):
+  - `avg10`: 10-second moving average (default, most responsive)
+  - `avg60`: 60-second moving average (balanced)
+  - `avg300`: 300-second moving average (smoothest, least noise)
+  - Shorter windows react faster but may trigger on transient spikes
+
 ## Requirements
 
 - Kubernetes cluster with Linux nodes (kernel 4.20+ for full PSI support)
@@ -144,6 +159,16 @@ oomhero \
   --critical-signal=SIGTERM
 ```
 
+### Fine-tuning PSI Metrics
+
+```bash
+oomhero \
+  --memory-pressure-warning=50 \
+  --memory-pressure-critical=80 \
+  --stall-severity=some \
+  --stall-window=avg60
+```
+
 ## Configuration Options
 
 | Option | Description | Default |
@@ -156,6 +181,8 @@ oomhero \
 | `--io-pressure-critical` | Critical threshold for I/O pressure (%) | 0 (disabled) |
 | `--cpu-pressure-warning` | Warning threshold for CPU pressure (%) | 0 (disabled) |
 | `--cpu-pressure-critical` | Critical threshold for CPU pressure (%) | 0 (disabled) |
+| `--stall-severity` | PSI stall severity level (some, full) | full |
+| `--stall-window` | PSI stall time window (avg10, avg60, avg300) | avg10 |
 | `--loop-interval` | Process scanning frequency | 100ms |
 | `--cooldown-interval` | Minimum time between repeated signals | 30s |
 | `--warning-signal` | Signal sent at warning threshold | SIGUSR1 |
