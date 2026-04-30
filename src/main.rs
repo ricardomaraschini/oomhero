@@ -1,7 +1,7 @@
 use clap::Parser;
 use duration_str;
-use log::debug;
 use log::info;
+use log::trace;
 use log::warn;
 use moka::sync::Cache;
 use nix::sys::signal;
@@ -110,7 +110,7 @@ fn main() {
 
     let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
     for event in rx {
-        debug!("{:?}", &event);
+        trace!("{:?}", &event);
         if let events::Priority::High = event.priority {
             last_messages.insert(event.pid, event.clone());
             warn!("{:?}", event);

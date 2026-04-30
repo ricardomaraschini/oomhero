@@ -6,7 +6,7 @@ use std::sync::mpsc;
 // Event is a struct used to represent an event on the system. events are more usually than not
 // related to a pid. for example: upon reading the memory usage for pid X an event may be sent
 // with the following format: Event{pid: X, message: "permission denied"}.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Event {
     pub pid: i32,
     pub message: String,
@@ -20,25 +20,28 @@ pub struct Event {
 
 // Priority determines how relevant an event on the system is. receivers of such events should
 // choose how to deal with them.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Priority {
+    #[default]
     Low,
     High,
 }
 
 impl Event {
-    // new returns a new event with what are considered sane defaults set.
-    pub fn default() -> Self {
-        Event {
-            pid: 0,
-            cmdline: String::new(),
-            message: String::new(),
-            priority: Priority::Low,
-            memory_usage: 0.0,
-            memory_pressure: 0.0,
-            io_pressure: 0.0,
-            cpu_pressure: 0.0,
-        }
+    // low_prio returns a new event with low priority set, this is a sugar coating on top of
+    // default as it already returns a low priority event. we overwrite so if the default
+    // changes in the future we still have this one.
+    pub fn low_prio() -> Self {
+        let mut event = Event::default();
+        event.priority = Priority::Low;
+        event
+    }
+
+    // high_prio returns a default event with the priority set to high.
+    pub fn high_prio() -> Self {
+        let mut event = Event::default();
+        event.priority = Priority::High;
+        event
     }
 
     // with_pid sets the pid for the event.
@@ -95,6 +98,22 @@ impl Event {
             .with_memory_pressure(cd.pressure.memory.full.avg10)
             .with_io_pressure(cd.pressure.io.full.avg10)
             .with_cpu_pressure(cd.pressure.cpu.full.avg10)
+    }
+
+    // with_process incorporates information about the provided process to an event.
+    pub fn with_process(self, process: &processes::Process) -> Self {
+        self.with_pid(process.pid)
+            .with_cmdline(process.cmdline.clone())
+    }
+
+    // with_process_collected_data adds information about the process and the collected data
+    // provided as arguments to the body of an event.
+    pub fn with_process_collected_data(
+        self,
+        process: &processes::Process,
+        cd: &processes::CollectedData,
+    ) -> Self {
+        self.with_process(process).with_collected_data(cd)
     }
 
     // deviates_significantly indicates if the current event differs enough to deserve to be acted

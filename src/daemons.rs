@@ -91,8 +91,7 @@ impl<'a> Monitor<'a> {
                 Ok(processes) => processes,
                 Err(err) => {
                     self.sink.send(
-                        events::Event::default()
-                            .with_priority(events::Priority::High)
+                        events::Event::high_prio()
                             .with_message(format!("error listing processes: {err}")),
                     );
                     continue;
@@ -109,10 +108,8 @@ impl<'a> Monitor<'a> {
                     Ok(usage) => usage,
                     Err(err) => {
                         self.sink.send(
-                            events::Event::default()
-                                .with_cmdline(process.cmdline)
-                                .with_pid(process.pid)
-                                .with_priority(events::Priority::Low)
+                            events::Event::low_prio()
+                                .with_process(&process)
                                 .with_message(format!("error collecting process data: {err}")),
                         );
                         continue;
@@ -120,20 +117,18 @@ impl<'a> Monitor<'a> {
                 };
 
                 let (warning, critical) = self.thresholds.check_against(&cd);
-                if critical {
-                    self.send_signal(&process, self.critical_signal, &cd, "critical");
-                    continue;
-                } else if warning {
-                    self.send_signal(&process, self.warning_signal, &cd, "warning");
+                if warning || critical {
+                    if critical {
+                        self.send_signal(&process, self.critical_signal, &cd, "critical");
+                    } else {
+                        self.send_signal(&process, self.warning_signal, &cd, "warning");
+                    }
                     continue;
                 }
 
                 self.sink.send(
-                    events::Event::default()
-                        .with_cmdline(process.cmdline)
-                        .with_pid(process.pid)
-                        .with_priority(events::Priority::Low)
-                        .with_collected_data(&cd)
+                    events::Event::low_prio()
+                        .with_process_collected_data(&process, &cd)
                         .with_message(format!("process usage within limits")),
                 );
             }
@@ -146,9 +141,7 @@ impl<'a> Monitor<'a> {
 
             let per_second = passes / since_last_pass.as_secs() as i64;
             self.sink.send(
-                events::Event::default()
-                    .with_priority(events::Priority::Low)
-                    .with_message(format!("scans per second: {per_second}")),
+                events::Event::low_prio().with_message(format!("scans per second: {per_second}")),
             );
 
             last_pass = time::Instant::now();
@@ -177,11 +170,8 @@ impl<'a> Monitor<'a> {
 
         if let Err(err) = processes::send_signal(process.pid, sig) {
             self.sink.send(
-                events::Event::default()
-                    .with_priority(events::Priority::High)
-                    .with_pid(process.pid)
-                    .with_cmdline(process.cmdline.clone())
-                    .with_collected_data(&cd)
+                events::Event::high_prio()
+                    .with_process_collected_data(process, &cd)
                     .with_message(format!("fail sending {desc} signal: {err}")),
             );
             return;
@@ -196,11 +186,8 @@ impl<'a> Monitor<'a> {
         );
 
         self.sink.send(
-            events::Event::default()
-                .with_priority(events::Priority::High)
-                .with_pid(process.pid)
-                .with_cmdline(process.cmdline.clone())
-                .with_collected_data(&cd)
+            events::Event::high_prio()
+                .with_process_collected_data(process, &cd)
                 .with_message(format!("{desc} signal sent successfully")),
         );
     }

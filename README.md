@@ -160,7 +160,6 @@ oomhero \
 | `--cooldown-interval` | Minimum time between repeated signals | 30s |
 | `--warning-signal` | Signal sent at warning threshold | SIGUSR1 |
 | `--critical-signal` | Signal sent at critical threshold | SIGUSR2 |
-| `--verbose` | Enable verbose logging | false |
 | `--version` | Display version information | false |
 
 **Note**: At least one pair of warning and critical thresholds must be
