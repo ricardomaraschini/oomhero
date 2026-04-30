@@ -126,7 +126,7 @@ impl UserProvided {
         self.cpu_pressure_warning > 0 && self.cpu_pressure_critical > 0
     }
 
-    // validate verifies we have warning and critical for at least one of out counters: memory
+    // validate verifies we have warning and critical for at least one of our counters: memory
     // usage, memory pressure, io pressure, and cpu pressure.
     pub fn validate(&self) -> Result<(), Error> {
         if self.has_memory_usage_threholds() {
@@ -147,7 +147,7 @@ impl UserProvided {
     }
 
     // select_pressure_value_to_compare returns the right value we must use to compare a pressure
-    // against its watermarks. this depends on what has been selected on both stall_severity and
+    // against its watermarks. This depends on what has been selected on both stall_severity and
     // stall_window.
     fn select_pressure_value_to_compare(&self, pressure_data: &processes::PressureData) -> f32 {
         let mut stall_severity = &pressure_data.full;
@@ -161,7 +161,7 @@ impl UserProvided {
         }
     }
 
-    // check_against checks the thresholds against the collected data. returns a tuple of bool
+    // check_against checks the thresholds against the collected data. Returns a tuple of bool
     // where .0 is warning and .1 is critical.
     pub fn check_against(&self, cd: &processes::CollectedData) -> (bool, bool) {
         let mut warning = false;

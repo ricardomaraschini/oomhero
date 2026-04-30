@@ -14,16 +14,17 @@ struct SignalRecord {
     kind: signal::Signal,
 }
 
-// Monitor implements a daemon that monitor processes memory utilization on a system. the monitor
-// is just a loop that never returns and can be started by calling run(). important to note that
-// the daemon is very cpu intensive. the idea is that one would govern how fast it evaluates
-// memory usage by properly setting cpu limits on the pod where it is running. it is, by no means,
+// Monitor implements a daemon that monitors processes memory utilization on a system. The monitor
+// is just a loop that never returns and can be started by calling run(). Important to note that
+// the daemon is very cpu intensive. The idea is that one would govern how fast it evaluates
+// memory usage by properly setting cpu limits on the pod where it is running. It is, by no means,
 // something to be used unbounded. cooldown_interval_secs governs how often we can send the same
-// signal towards the same pid while last_signals keeps track of previously send signals. we limit
-// the historic data to 1_000 different pids, we do not expect this to ever go beyound this.
+// signal towards the same pid while last_signals keeps track of previously sent signals. We limit
+// the historic data to 1_000 different pids, we do not expect this to ever go beyond this.
 pub struct Monitor<'a> {
     sink: &'a events::Transmitter,
     thresholds: &'a thresholds::UserProvided,
+    processes_discover: &'a dyn processes::ProcessProvider,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
     warning_signal: signal::Signal,
@@ -32,13 +33,18 @@ pub struct Monitor<'a> {
 }
 
 impl<'a> Monitor<'a> {
-    // new returns a new cgroups monitor. sink is used to send all events, warning and critical are
+    // new returns a new cgroups monitor. Sink is used to send all events, warning and critical are
     // used to assess the memory usage while last_signals is used to keep track when was the last
     // time we signaled a process.
-    pub fn new(sink: &'a events::Transmitter, thresholds: &'a thresholds::UserProvided) -> Self {
+    pub fn new(
+        sink: &'a events::Transmitter,
+        thresholds: &'a thresholds::UserProvided,
+        processes_discover: &'a impl processes::ProcessProvider,
+    ) -> Self {
         Monitor {
             sink,
             thresholds,
+            processes_discover,
             loop_interval: time::Duration::from_millis(100),
             last_signals: Cache::new(1_000),
             warning_signal: signal::Signal::SIGUSR1,
@@ -73,10 +79,10 @@ impl<'a> Monitor<'a> {
         self
     }
 
-    // run starts the process monitor. this function lists as processes on the system and evalutes
-    // their memory and pressure data. signals are sent to the processes crossing the warning and
-    // critical watermarks. it is important for the caller to constantly read from the sender
-    // passed in as errors are send as messages through it. this function never returns. also
+    // run starts the process monitor. This function lists all processes on the system and evaluates
+    // their memory and pressure data. Signals are sent to the processes crossing the warning and
+    // critical watermarks. It is important for the caller to constantly read from the sender
+    // passed in as errors are sent as messages through it. This function never returns. Also
     // important to know that this function has just a very small sleep between interactions so
     // when running this on a cluster you better set proper resource.limits.cpu values as that is
     // what guides how often we run the loops.
@@ -87,7 +93,7 @@ impl<'a> Monitor<'a> {
         loop {
             thread::sleep(self.loop_interval);
 
-            let processes = match processes::list() {
+            let processes = match self.processes_discover.list() {
                 Ok(processes) => processes,
                 Err(err) => {
                     self.sink.send(
@@ -104,7 +110,7 @@ impl<'a> Monitor<'a> {
                     continue;
                 }
 
-                let cd = match processes::collect_process_data(process.pid) {
+                let cd = match self.processes_discover.collect_process_data(process.pid) {
                     Ok(usage) => usage,
                     Err(err) => {
                         self.sink.send(
@@ -149,9 +155,9 @@ impl<'a> Monitor<'a> {
         }
     }
 
-    // send_signal sends the provided signal to the provided process. this function also generate an
+    // send_signal sends the provided signal to the provided process. This function also generates an
     // event either in case of success or failure. This function also accepts a description for the
-    // signal (that is used only for giving the resultin event more context).
+    // signal (that is used only for giving the resulting event more context).
     fn send_signal(
         &self,
         process: &processes::Process,
@@ -168,7 +174,7 @@ impl<'a> Monitor<'a> {
             }
         }
 
-        if let Err(err) = processes::send_signal(process.pid, sig) {
+        if let Err(err) = self.processes_discover.send_signal(process.pid, sig) {
             self.sink.send(
                 events::Event::high_prio()
                     .with_process_collected_data(process, &cd)

@@ -3,8 +3,8 @@ use log::warn;
 use std::cmp::Ordering;
 use std::sync::mpsc;
 
-// Event is a struct used to represent an event on the system. events are more usually than not
-// related to a pid. for example: upon reading the memory usage for pid X an event may be sent
+// Event is a struct used to represent an event on the system. Events are more usually than not
+// related to a pid. For example: upon reading the memory usage for pid X an event may be sent
 // with the following format: Event{pid: X, message: "permission denied"}.
 #[derive(Debug, Clone, Default)]
 pub struct Event {
@@ -18,7 +18,7 @@ pub struct Event {
     pub cpu_pressure: f32,
 }
 
-// Priority determines how relevant an event on the system is. receivers of such events should
+// Priority determines how relevant an event on the system is. Receivers of such events should
 // choose how to deal with them.
 #[derive(Debug, Clone, Default)]
 pub enum Priority {
@@ -28,8 +28,8 @@ pub enum Priority {
 }
 
 impl Event {
-    // low_prio returns a new event with low priority set, this is a sugar coating on top of
-    // default as it already returns a low priority event. we overwrite so if the default
+    // low_prio returns a new event with low priority set. This is a sugar coating on top of
+    // default as it already returns a low priority event. We overwrite so if the default
     // changes in the future we still have this one.
     pub fn low_prio() -> Self {
         let mut event = Event::default();
@@ -117,7 +117,7 @@ impl Event {
     }
 
     // deviates_significantly indicates if the current event differs enough to deserve to be acted
-    // upon. for example: if the usage differs more than 10% we return true. used on the system to
+    // upon. For example: if the usage differs more than 10% we return true. Used on the system to
     // determine if an event deserves to be logged.
     pub fn deviates_significantly(&self, from: &Event) -> bool {
         let max = 10_f32;
@@ -151,8 +151,8 @@ impl Transmitter {
         Transmitter { channel }
     }
 
-    // send sends the event through the provided Sender. in case of failure the error seen
-    // at transmission time is logged. we lose the original event but we have a bigger fish
+    // send sends the event through the provided Sender. In case of failure the error seen
+    // at transmission time is logged. We lose the original event but we have a bigger fish
     // to fry if we ever encounter this.
     pub fn send(&self, event: Event) {
         if let Err(err) = self.channel.send(event) {

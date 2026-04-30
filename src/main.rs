@@ -5,8 +5,10 @@ use log::trace;
 use log::warn;
 use moka::sync::Cache;
 use nix::sys::signal;
+use oomhero::cgroups;
 use oomhero::daemons;
 use oomhero::events;
+use oomhero::processes;
 use oomhero::thresholds;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
@@ -99,8 +101,11 @@ fn main() {
     let (tx, rx) = sync::mpsc::channel::<events::Event>();
 
     thread::spawn(move || {
+        let syscgroups = cgroups::SystemCGroups::default();
+        let processes_explorer = processes::ProcFsReader::new(&syscgroups);
+
         let tx = events::Transmitter::new(tx);
-        let monitor = daemons::Monitor::new(&tx, &args.thresholds)
+        let monitor = daemons::Monitor::new(&tx, &args.thresholds, &processes_explorer)
             .with_cooldown_interval(args.cooldown_interval)
             .with_loop_interval(args.loop_interval)
             .with_warning_signal(args.warning_signal)
