@@ -26,7 +26,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "memory_usage_critical",
-        help = "Warning for memory usage"
+        help = "Warning watermark for memory usage (in percentage)"
     )]
     pub memory_usage_warning: i32,
 
@@ -34,7 +34,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "memory_usage_warning",
-        help = "Critical for memory usage"
+        help = "Critical watermark for memory usage (in percentage)"
     )]
     pub memory_usage_critical: i32,
 
@@ -42,7 +42,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "memory_pressure_critical",
-        help = "Warning for memory pressure"
+        help = "Warning watermark for memory pressure (in percentage)"
     )]
     pub memory_pressure_warning: i32,
 
@@ -50,7 +50,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "memory_pressure_warning",
-        help = "Critical for memory pressure"
+        help = "Critical watermark for memory pressure (in percentage)"
     )]
     pub memory_pressure_critical: i32,
 
@@ -58,7 +58,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "io_pressure_critical",
-        help = "Warning for io pressure"
+        help = "Warning watermark for io pressure (in percentage)"
     )]
     pub io_pressure_warning: i32,
 
@@ -66,7 +66,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "io_pressure_warning",
-        help = "Critical for io pressure"
+        help = "Critical watermark for io pressure (in percentage)"
     )]
     pub io_pressure_critical: i32,
 
@@ -74,7 +74,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "cpu_pressure_critical",
-        help = "Warning for cpu pressure"
+        help = "Warning watermark for cpu pressure (in percentage)"
     )]
     pub cpu_pressure_warning: i32,
 
@@ -82,7 +82,7 @@ pub struct UserProvided {
         long,
         default_value = "0",
         requires = "cpu_pressure_warning",
-        help = "Critical for cpu pressure"
+        help = "Critical watermark for cpu pressure (in percentage)"
     )]
     pub cpu_pressure_critical: i32,
 
