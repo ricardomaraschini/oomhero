@@ -18,16 +18,34 @@ use std::time;
 
 #[derive(Parser)]
 struct Arguments {
-    #[arg(long, default_value = "100ms", help = "How often scan all processes", value_parser = parse_duration)]
+    #[arg(
+        long,
+        default_value = "100ms",
+        value_parser = parse_duration,
+        help = "Interval to be used as a pause between process scans"
+    )]
     loop_interval: time::Duration,
 
-    #[arg(long, default_value = "30s", help = "Interval between signals", value_parser = parse_duration)]
+    #[arg(
+        long,
+        default_value = "30s",
+        value_parser = parse_duration,
+        help = "Interval to wait before sending the same signal to the same process"
+    )]
     cooldown_interval: time::Duration,
 
-    #[arg(long, default_value = "SIGUSR1", help = "Signal send on warning")]
+    #[arg(
+        long,
+        default_value = "SIGUSR1",
+        help = "Signal to be send when a process crosses the warning watermark"
+    )]
     warning_signal: signal::Signal,
 
-    #[arg(long, default_value = "SIGUSR2", help = "Signal send on critical")]
+    #[arg(
+        long,
+        default_value = "SIGUSR2",
+        help = "Signal to be send when a process crosses the critical watermark"
+    )]
     critical_signal: signal::Signal,
 
     #[arg(long, default_value = "false", help = "Print version")]
@@ -127,39 +145,51 @@ fn banner() {
     info!("│ȱ├│ȱ││││├─┤├┤ ├┬┘│ │         ");
     info!("└─┘└─┘┴ ┴┴ ┴└─┘┴└─└─┘'        ");
     info!(" ────                         ");
-    info!("compile information:          ");
-    info!(" commit_date:       {}        ", COMMIT_DATE);
-    info!(" commit_hash:       {}        ", hash);
-    info!(" dirty:             {}        ", COMMIT_DIRTY);
+    info!(" commit date:              {} ", COMMIT_DATE);
+    info!(" commit hash:              {} ", hash);
+    info!(" dirty:                    {} ", COMMIT_DIRTY);
 }
 
 // active config prints the active configuration present int he arguments.
 fn active_config(args: &Arguments) {
     let t = &args.thresholds;
-    info!("                              ");
-    info!("active config:                ");
-    info!(" memory_usage_warning:    {}% ", t.memory_usage_warning);
-    info!(" memory_usage_critical:   {}% ", t.memory_usage_critical);
-    info!(" memory_pressure_warning: {}% ", t.memory_pressure_warning);
-    info!(" memory_pressure_critical:{}% ", t.memory_pressure_critical);
-    info!(" io_pressure_warning:     {}% ", t.io_pressure_warning);
-    info!(" io_pressure_critical:    {}% ", t.io_pressure_critical);
-    info!(" cpu_pressure_warning:    {}% ", t.cpu_pressure_warning);
-    info!(" cpu_pressure_critical    {}% ", t.cpu_pressure_critical);
-    info!(" loop_interval:           {:?}", args.loop_interval);
-    info!(" cooldown_interval:       {:?}", args.cooldown_interval);
-    info!(" warning_signal:          {:?}", args.warning_signal);
-    info!(" critical_signal:         {:?}", args.critical_signal);
-    info!("                              ");
-
     let memusage = t.has_memory_usage_threholds();
     let mempress = t.has_memory_pressure_thresholds();
     let iopress = t.has_io_pressure_thresholds();
     let cpupress = t.has_cpu_pressure_thresholds();
-    info!("enabled checks:               ");
-    info!(" memory_usage:            {}  ", memusage);
-    info!(" memory_pressure:         {}  ", mempress);
-    info!(" io_pressure:             {}  ", iopress);
-    info!(" cpu_pressure:            {}  ", cpupress);
+
+    info!("");
+    info!("general config:");
+    info!(" loop interval:           {:?}", args.loop_interval);
+    info!(" cooldown interval:       {:?}", args.cooldown_interval);
+    info!(" warning signal:          {:?}", args.warning_signal);
+    info!(" critical signal:         {:?}", args.critical_signal);
+    if mempress || iopress || cpupress {
+        info!(" stall severity:          {:?}", t.stall_severity);
+        info!(" stall window:            {:?}", t.stall_window);
+    }
+
+    info!("");
+    info!("enabled checks:");
+    if memusage {
+        info!(" memory usage:");
+        info!("  memory usage_warning:    {}%", t.memory_usage_warning);
+        info!("  memory usage_critical:   {}%", t.memory_usage_critical);
+    }
+    if mempress {
+        info!(" memory pressure:");
+        info!("  memory pressure warning: {}%", t.memory_pressure_warning);
+        info!("  memory pressure critical:{}%", t.memory_pressure_critical);
+    }
+    if iopress {
+        info!(" io pressure:");
+        info!("  io pressure warning:     {}%", t.io_pressure_warning);
+        info!("  io pressure critical:    {}%", t.io_pressure_critical);
+    }
+    if cpupress {
+        info!(" cpu pressure:");
+        info!("  cpu pressure warning:    {}%", t.cpu_pressure_warning);
+        info!("  cpu pressure critical    {}%", t.cpu_pressure_critical);
+    }
     info!("                              ");
 }
