@@ -20,7 +20,7 @@ pub enum StallWindow {
 
 // UserProvided holds all thresholds supported by the monitor that can be customized by the user.
 // this struct is tailored to be used with the clap crate (allows for user provided data).
-#[derive(Parser, Clone)]
+#[derive(Parser, Clone, Debug)]
 pub struct UserProvided {
     #[arg(
         long,
