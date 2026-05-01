@@ -24,22 +24,36 @@ pub trait CGroupProvider {
 #[derive(Debug, Clone, Default)]
 pub struct SystemCGroups {}
 
+impl SystemCGroups {
+    // path_to_pressure_file returns the path to the pressure file for the provided resource.
+    // Pressure isn't supported on CGroupsV1.
+    fn path_to_pressure_file(&self, pid: i32, resource: &str) -> Result<String, Error> {
+        match self.version()? {
+            CGroupsVersions::CGroupsV1 => {
+                Err(Error::Message(format!("pressure not supported on v1")))
+            }
+            CGroupsVersions::CGroupsV2 => Ok(format!(
+                "/proc/{}/root/sys/fs/cgroup/{}.pressure",
+                pid, resource
+            )),
+        }
+    }
+}
+
 impl CGroupProvider for SystemCGroups {
     // version returns the cgroups version supported by the kernel. This is determined by inspecting
     // the /sys/fs filesystem.
     fn version(&self) -> Result<CGroupsVersions, Error> {
-        let stat = statfs::statfs("/sys/fs/cgroup")?;
-        if stat.filesystem_type() == statfs::CGROUP2_SUPER_MAGIC {
-            return Ok(CGroupsVersions::CGroupsV2);
-        }
-        Ok(CGroupsVersions::CGroupsV1)
+        Ok(match statfs::statfs("/sys/fs/cgroup")?.filesystem_type() {
+            statfs::CGROUP2_SUPER_MAGIC => CGroupsVersions::CGroupsV2,
+            _ => CGroupsVersions::CGroupsV1,
+        })
     }
 
     // path_to_memory_max returns the path to the file from where the max memory allowance for a
     // given pid can be read from. The path varies according to the supported cgroups version.
     fn path_to_memory_max(&self, pid: i32) -> Result<String, Error> {
-        let version = self.version()?;
-        let path = match version {
+        Ok(match self.version()? {
             CGroupsVersions::CGroupsV1 => {
                 format!(
                     "/proc/{}/root/sys/fs/cgroup/memory/memory.limit_in_bytes",
@@ -49,15 +63,13 @@ impl CGroupProvider for SystemCGroups {
             CGroupsVersions::CGroupsV2 => {
                 format!("/proc/{}/root/sys/fs/cgroup/memory.max", pid)
             }
-        };
-        Ok(path)
+        })
     }
 
     // path_to_memory_current returns the path to the file from where the current memory usage for
     // a given pid can be read from. The path varies according to the supported cgroups version.
     fn path_to_memory_current(&self, pid: i32) -> Result<String, Error> {
-        let version = self.version()?;
-        let path = match version {
+        Ok(match self.version()? {
             CGroupsVersions::CGroupsV1 => {
                 format!(
                     "/proc/{}/root/sys/fs/cgroup/memory/memory.usage_in_bytes",
@@ -67,37 +79,24 @@ impl CGroupProvider for SystemCGroups {
             CGroupsVersions::CGroupsV2 => {
                 format!("/proc/{}/root/sys/fs/cgroup/memory.current", pid)
             }
-        };
-        Ok(path)
+        })
     }
 
     // path_for_memory_pressure returns the path from where to read the memory pressure information.
     // This is not supported on cgroups v1 (it might be but it is not coded here).
     fn path_for_memory_pressure(&self, pid: i32) -> Result<String, Error> {
-        let version = self.version()?;
-        if let CGroupsVersions::CGroupsV1 = version {
-            return Err(Error::Message(format!("pressure not supported on v1")));
-        };
-        Ok(format!("/proc/{}/root/sys/fs/cgroup/memory.pressure", pid))
+        self.path_to_pressure_file(pid, "memory")
     }
 
     // path_for_io_pressure returns the path from where to read the io pressure information. This is
     // not supported on cgroups v1 (it might be but it is not coded here).
     fn path_for_io_pressure(&self, pid: i32) -> Result<String, Error> {
-        let version = self.version()?;
-        if let CGroupsVersions::CGroupsV1 = version {
-            return Err(Error::Message(format!("pressure not supported on v1")));
-        };
-        Ok(format!("/proc/{}/root/sys/fs/cgroup/io.pressure", pid))
+        self.path_to_pressure_file(pid, "io")
     }
 
     // path_for_cpu_pressure returns the path from where to read the cpu pressure information. This is
     // not supported on cgroups v1 (it might be but it is not coded here).
     fn path_for_cpu_pressure(&self, pid: i32) -> Result<String, Error> {
-        let version = self.version()?;
-        if let CGroupsVersions::CGroupsV1 = version {
-            return Err(Error::Message(format!("pressure not supported on v1")));
-        };
-        Ok(format!("/proc/{}/root/sys/fs/cgroup/cpu.pressure", pid))
+        self.path_to_pressure_file(pid, "cpu")
     }
 }

@@ -89,19 +89,19 @@ impl<'a> ProcFsReader<'a> {
     // cpu_pressure reads and parses the cpu pressure (psi) for the provided pid.
     fn cpu_pressure(&self, pid: i32) -> Result<PressureData, Error> {
         let path = self.cgroups.path_for_cpu_pressure(pid)?;
-        return self.parse_pressure_data_file(path);
+        self.parse_pressure_data_file(path)
     }
 
     // io_pressure reads and parses the io pressure (psi) for the provided pid.
     fn io_pressure(&self, pid: i32) -> Result<PressureData, Error> {
         let path = self.cgroups.path_for_io_pressure(pid)?;
-        return self.parse_pressure_data_file(path);
+        self.parse_pressure_data_file(path)
     }
 
     // memory_pressure reads and parses the memory pressure (psi) for the provided pid.
     fn memory_pressure(&self, pid: i32) -> Result<PressureData, Error> {
         let path = self.cgroups.path_for_memory_pressure(pid)?;
-        return self.parse_pressure_data_file(path);
+        self.parse_pressure_data_file(path)
     }
 
     // parse_pressure_data_file parses a kernel psi file, the file format is as follow:
@@ -274,13 +274,13 @@ impl<'a> ProcessProvider for ProcFsReader<'a> {
             (result.memory_current, result.memory_max) = self.memory_stats(pid)?;
         }
 
-        let version = self.cgroups.version()?;
-        match version {
-            cgroups::CGroupsVersions::CGroupsV1 => return Ok(result),
-            cgroups::CGroupsVersions::CGroupsV2 => result.pressure = self.pressure(pid)?,
-        }
-
-        Ok(result)
+        Ok(match self.cgroups.version()? {
+            cgroups::CGroupsVersions::CGroupsV1 => result,
+            cgroups::CGroupsVersions::CGroupsV2 => {
+                result.pressure = self.pressure(pid)?;
+                result
+            }
+        })
     }
 
     // send_signal sends a signal to the process pointed by the pid.

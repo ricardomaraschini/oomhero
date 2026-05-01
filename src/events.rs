@@ -122,21 +122,18 @@ impl Event {
     pub fn deviates_significantly(&self, from: &Event) -> bool {
         let max = 10_f32;
         if (self.memory_usage - from.memory_usage).abs() > max {
-            return true;
+            true
+        } else if (self.memory_pressure - from.memory_pressure).abs() > max {
+            true
+        } else if (self.io_pressure - from.io_pressure).abs() > max {
+            true
+        } else if (self.cpu_pressure - from.cpu_pressure).abs() > max {
+            true
+        } else if let Ordering::Equal = self.message.cmp(&from.message) {
+            false
+        } else {
+            true
         }
-        if (self.memory_pressure - from.memory_pressure).abs() > max {
-            return true;
-        }
-        if (self.io_pressure - from.io_pressure).abs() > max {
-            return true;
-        }
-        if (self.cpu_pressure - from.cpu_pressure).abs() > max {
-            return true;
-        }
-        if let Ordering::Equal = self.message.cmp(&from.message) {
-            return false;
-        }
-        true
     }
 }
 
