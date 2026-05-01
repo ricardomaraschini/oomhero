@@ -66,7 +66,7 @@ fn main() {
         trace!("{:?}", &event);
         if let events::Priority::High = event.priority {
             last_messages.insert(event.pid, event.clone());
-            warn!("{:?}", event);
+            warn!("{}", event);
             continue;
         }
 
@@ -77,7 +77,7 @@ fn main() {
         }
 
         last_messages.insert(event.pid, event.clone());
-        info!("{:?}", event);
+        info!("{}", event);
     }
 }
 
