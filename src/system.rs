@@ -32,7 +32,7 @@ impl SystemCGroups {
     // path_to_pressure_file returns the path to the pressure file for the provided resource.
     // Pressure isn't supported on CGroupsV1.
     fn path_to_pressure_file(&self, pid: i32, resource: &str) -> Result<String, Error> {
-        match self.cgroups_version()? {
+        self.cgroups_version().and_then(|version| match version {
             CGroupsVersions::CGroupsV1 => {
                 Err(Error::Message("pressure not supported on v1".to_string()))
             }
@@ -40,7 +40,7 @@ impl SystemCGroups {
                 "/proc/{}/root/sys/fs/cgroup/{}.pressure",
                 pid, resource
             )),
-        }
+        })
     }
 }
 
@@ -57,7 +57,7 @@ impl Provider for SystemCGroups {
     // path_to_memory_max returns the path to the file from where the max memory allowance for a
     // given pid can be read from. The path varies according to the supported cgroups version.
     fn path_to_memory_max(&self, pid: i32) -> Result<String, Error> {
-        Ok(match self.cgroups_version()? {
+        self.cgroups_version().map(|version| match version {
             CGroupsVersions::CGroupsV1 => {
                 format!(
                     "/proc/{}/root/sys/fs/cgroup/memory/memory.limit_in_bytes",
@@ -73,7 +73,7 @@ impl Provider for SystemCGroups {
     // path_to_memory_current returns the path to the file from where the current memory usage for
     // a given pid can be read from. The path varies according to the supported cgroups version.
     fn path_to_memory_current(&self, pid: i32) -> Result<String, Error> {
-        Ok(match self.cgroups_version()? {
+        self.cgroups_version().map(|version| match version {
             CGroupsVersions::CGroupsV1 => {
                 format!(
                     "/proc/{}/root/sys/fs/cgroup/memory/memory.usage_in_bytes",

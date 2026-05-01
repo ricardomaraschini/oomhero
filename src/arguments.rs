@@ -217,10 +217,10 @@ impl Thresholds {
     // against its watermarks. This depends on what has been selected on both stall_severity and
     // stall_window.
     fn select_pressure_value_to_compare(&self, pressure_data: &processes::PressureData) -> f32 {
-        let mut stall_severity = &pressure_data.full;
-        if let StallSeverity::Some = self.stall_severity {
-            stall_severity = &pressure_data.some;
-        }
+        let stall_severity = match self.stall_severity {
+            StallSeverity::Some => &pressure_data.some,
+            StallSeverity::Full => &pressure_data.full,
+        };
         match self.stall_window {
             StallWindow::Avg10 => stall_severity.avg10,
             StallWindow::Avg60 => stall_severity.avg60,

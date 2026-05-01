@@ -214,7 +214,7 @@ impl<T: system::Provider> ProcessProvider for ProcFsReader<T> {
             .filter_map(|entry| {
                 let pid: i32 = entry.path().file_name()?.to_str()?.parse().ok()?;
                 Some(Process {
-                    pid: pid,
+                    pid,
                     cmdline: self.cmdline(pid).unwrap_or_default(),
                 })
             })
