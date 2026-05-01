@@ -21,13 +21,9 @@ const COMMIT_HASH: &str = env!("VERGEN_GIT_SHA");
 const COMMIT_DIRTY: &str = env!("VERGEN_GIT_DIRTY");
 
 fn main() {
-    if env::var("RUST_LOG").is_err() {
-        unsafe {
-            env::set_var("RUST_LOG", "info");
-        }
-    }
+    let environment = env_logger::Env::new().default_filter_or("info");
+    env_logger::Builder::from_env(environment).init();
 
-    env_logger::init();
     let flags = arguments::Flags::parse();
     if flags.version {
         banner();
