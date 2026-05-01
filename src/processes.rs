@@ -114,7 +114,7 @@ impl<'a> ProcFsReader<'a> {
 
         for line in io::BufReader::new(fp).lines() {
             let line = line?;
-            let mut tokens = line.trim().split_whitespace();
+            let mut tokens = line.split_whitespace();
 
             let averages = match tokens.next() {
                 Some("some") => &mut result.some,
@@ -237,7 +237,7 @@ impl<'a> ProcessProvider for ProcFsReader<'a> {
                 }
             };
 
-            if metadata.is_dir() == false {
+            if !metadata.is_dir() {
                 continue;
             }
 
@@ -267,8 +267,10 @@ impl<'a> ProcessProvider for ProcFsReader<'a> {
     // collected data struct or an error. XXX pressure reads are skipped from cgroups v1. If
     // the process has no memory limit then its memory usage is 0%.
     fn collect_process_data(&self, pid: i32) -> Result<CollectedData, Error> {
-        let mut result = CollectedData::default();
-        result.oom_score = self.oom_score(pid)?;
+        let mut result = CollectedData {
+            oom_score: self.oom_score(pid)?,
+            ..Default::default()
+        };
 
         if self.has_memory_limit(pid)? {
             (result.memory_current, result.memory_max) = self.memory_stats(pid)?;

@@ -30,7 +30,7 @@ impl SystemCGroups {
     fn path_to_pressure_file(&self, pid: i32, resource: &str) -> Result<String, Error> {
         match self.version()? {
             CGroupsVersions::CGroupsV1 => {
-                Err(Error::Message(format!("pressure not supported on v1")))
+                Err(Error::Message("pressure not supported on v1".to_string()))
             }
             CGroupsVersions::CGroupsV2 => Ok(format!(
                 "/proc/{}/root/sys/fs/cgroup/{}.pressure",

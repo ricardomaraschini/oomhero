@@ -200,18 +200,16 @@ impl Thresholds {
     // validate verifies we have warning and critical for at least one of our counters: memory
     // usage, memory pressure, io pressure, and cpu pressure.
     pub fn validate(&self) -> Result<(), Error> {
-        if self.has_memory_usage_threholds() {
-            Ok(())
-        } else if self.has_memory_pressure_thresholds() {
-            Ok(())
-        } else if self.has_io_pressure_thresholds() {
-            Ok(())
-        } else if self.has_cpu_pressure_thresholds() {
+        if self.has_memory_usage_threholds()
+            || self.has_memory_pressure_thresholds()
+            || self.has_io_pressure_thresholds()
+            || self.has_cpu_pressure_thresholds()
+        {
             Ok(())
         } else {
-            Err(Error::Message(format!(
-                "missing warning and critical for at least one specific counter"
-            )))
+            Err(Error::Message(
+                "missing warning and critical for at least one specific counter".to_string(),
+            ))
         }
     }
 

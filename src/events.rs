@@ -32,16 +32,18 @@ impl Event {
     // default as it already returns a low priority event. We overwrite so if the default
     // changes in the future we still have this one.
     pub fn low_prio() -> Self {
-        let mut event = Event::default();
-        event.priority = Priority::Low;
-        event
+        Event {
+            priority: Priority::Low,
+            ..Default::default()
+        }
     }
 
     // high_prio returns a default event with the priority set to high.
     pub fn high_prio() -> Self {
-        let mut event = Event::default();
-        event.priority = Priority::High;
-        event
+        Event {
+            priority: Priority::High,
+            ..Default::default()
+        }
     }
 
     // with_pid sets the pid for the event.
@@ -121,18 +123,14 @@ impl Event {
     // determine if an event deserves to be logged.
     pub fn deviates_significantly(&self, from: &Event) -> bool {
         let max = 10_f32;
-        if (self.memory_usage - from.memory_usage).abs() > max {
+        if (self.memory_usage - from.memory_usage).abs() > max
+            || (self.memory_pressure - from.memory_pressure).abs() > max
+            || (self.io_pressure - from.io_pressure).abs() > max
+            || (self.cpu_pressure - from.cpu_pressure).abs() > max
+        {
             true
-        } else if (self.memory_pressure - from.memory_pressure).abs() > max {
-            true
-        } else if (self.io_pressure - from.io_pressure).abs() > max {
-            true
-        } else if (self.cpu_pressure - from.cpu_pressure).abs() > max {
-            true
-        } else if let Ordering::Equal = self.message.cmp(&from.message) {
-            false
         } else {
-            true
+            !matches!(self.message.cmp(&from.message), Ordering::Equal)
         }
     }
 }

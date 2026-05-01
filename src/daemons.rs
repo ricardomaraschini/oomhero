@@ -135,7 +135,7 @@ impl<'a> Monitor<'a> {
                 self.sink.send(
                     events::Event::low_prio()
                         .with_process_collected_data(&process, &cd)
-                        .with_message(format!("process usage within limits")),
+                        .with_message("process usage within limits".to_string()),
                 );
             }
 
@@ -165,19 +165,17 @@ impl<'a> Monitor<'a> {
         cd: &processes::CollectedData,
         desc: &str,
     ) {
-        if let Some(last_signal) = self.last_signals.get(&process.pid) {
-            if last_signal.kind == sig {
-                let elapsed = time::Instant::now() - last_signal.when;
-                if elapsed < self.cooldown_interval {
-                    return;
-                }
+        if let Some(last_signal) = self.last_signals.get(&process.pid) && last_signal.kind == sig {
+            let elapsed = time::Instant::now() - last_signal.when;
+            if elapsed < self.cooldown_interval {
+                return;
             }
         }
 
         if let Err(err) = self.processes_discover.send_signal(process.pid, sig) {
             self.sink.send(
                 events::Event::high_prio()
-                    .with_process_collected_data(process, &cd)
+                    .with_process_collected_data(process, cd)
                     .with_message(format!("fail sending {desc} signal: {err}")),
             );
             return;
@@ -193,7 +191,7 @@ impl<'a> Monitor<'a> {
 
         self.sink.send(
             events::Event::high_prio()
-                .with_process_collected_data(process, &cd)
+                .with_process_collected_data(process, cd)
                 .with_message(format!("{desc} signal sent successfully")),
         );
     }

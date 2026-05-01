@@ -71,10 +71,8 @@ fn main() {
             continue;
         }
 
-        if let Some(previous_event) = last_messages.get(&event.pid) {
-            if event.deviates_significantly(&previous_event) == false {
+        if let Some(previous_event) = last_messages.get(&event.pid) && !event.deviates_significantly(&previous_event) {
                 continue;
-            }
         }
 
         last_messages.insert(event.pid, event.clone());
