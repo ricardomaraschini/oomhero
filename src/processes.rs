@@ -1,6 +1,5 @@
 use super::cgroups;
 use super::errors::Error;
-use log::debug;
 use nix::sys::signal;
 use nix::unistd;
 use std::fs;
@@ -221,46 +220,17 @@ impl<T: cgroups::SystemProvider> ProcessProvider for ProcFsReader<T> {
     // processes come and go as they please. A failure to read a path in /proc is considered a normal
     // occurrence and is just skipped.
     fn list(&self) -> Result<Vec<Process>, Error> {
-        let dir_entries = fs::read_dir("/proc")?;
-
-        let mut processes: Vec<Process> = vec![];
-        for tmp_entry in dir_entries {
-            let entry = tmp_entry?;
-
-            // processes come and go as they please so here if we can't get the file metadata
-            // then it most likely went way. We just move on.
-            let metadata = match entry.metadata() {
-                Ok(metadata) => metadata,
-                Err(err) => {
-                    debug!("reading entry metadata: {err}");
-                    continue;
-                }
-            };
-
-            if !metadata.is_dir() {
-                continue;
-            }
-
-            let pbuf = entry.path();
-            let Some(path) = pbuf.as_path().file_name() else {
-                continue;
-            };
-
-            let Some(as_str) = path.to_str() else {
-                continue;
-            };
-
-            let Ok(pid): Result<i32, _> = as_str.parse() else {
-                continue;
-            };
-
-            processes.push(Process {
-                pid,
-                cmdline: self.cmdline(pid).unwrap_or_default(),
-            });
-        }
-
-        Ok(processes)
+        Ok(fs::read_dir("/proc")?
+            .filter_map(|entry| entry.ok())
+            .filter(|entry| entry.metadata().map(|m| m.is_dir()).unwrap_or(false))
+            .filter_map(|entry| {
+                let pid: i32 = entry.path().as_path().file_name()?.to_str()?.parse().ok()?;
+                Some(Process {
+                    pid: pid,
+                    cmdline: self.cmdline(pid).unwrap_or_default(),
+                })
+            })
+            .collect())
     }
 
     // collect_process_data reads all data for a given process identified by the pid. Returns a
