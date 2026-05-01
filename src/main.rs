@@ -4,7 +4,7 @@ use log::trace;
 use log::warn;
 use moka::sync::Cache;
 use oomhero::arguments;
-use oomhero::cgroups;
+use oomhero::system;
 use oomhero::daemons;
 use oomhero::events;
 use oomhero::processes;
@@ -51,7 +51,7 @@ fn main() {
 
     thread::spawn(move || {
         let tx = events::Transmitter::new(tx);
-        let syscgroups = cgroups::SystemCGroups::default();
+        let syscgroups = system::SystemCGroups::default();
         let processes_explorer = processes::ProcFsReader::new(syscgroups);
         let monitor = daemons::Monitor::new(tx, flags.thresholds, processes_explorer)
             .with_cooldown_interval(flags.cooldown_interval)

@@ -1,5 +1,5 @@
-use super::cgroups;
 use super::errors::Error;
+use super::system;
 use nix::sys::signal;
 use nix::unistd;
 use std::fs;
@@ -63,15 +63,15 @@ pub struct Process {
     pub cmdline: String,
 }
 
-// ProcFsReader reads process information from the /proc filesystem using the provided SystemProvider
+// ProcFsReader reads process information from the /proc filesystem using the provided Provider
 // for cgroup-related data.
 #[derive(Clone)]
-pub struct ProcFsReader<T: cgroups::SystemProvider> {
+pub struct ProcFsReader<T: system::Provider> {
     system: T,
 }
 
-impl<T: cgroups::SystemProvider> ProcFsReader<T> {
-    // new returns a new ProcFsReader using the provided SystemProvider.
+impl<T: system::Provider> ProcFsReader<T> {
+    // new returns a new ProcFsReader using the provided Provider.
     pub fn new(system: T) -> Self {
         ProcFsReader { system }
     }
@@ -87,20 +87,17 @@ impl<T: cgroups::SystemProvider> ProcFsReader<T> {
 
     // cpu_pressure reads and parses the cpu pressure (psi) for the provided pid.
     fn cpu_pressure(&self, pid: i32) -> Result<PressureData, Error> {
-        let path = self.system.path_for_cpu_pressure(pid)?;
-        self.parse_pressure_data_file(path)
+        self.parse_pressure_data_file(self.system.path_for_cpu_pressure(pid)?)
     }
 
     // io_pressure reads and parses the io pressure (psi) for the provided pid.
     fn io_pressure(&self, pid: i32) -> Result<PressureData, Error> {
-        let path = self.system.path_for_io_pressure(pid)?;
-        self.parse_pressure_data_file(path)
+        self.parse_pressure_data_file(self.system.path_for_io_pressure(pid)?)
     }
 
     // memory_pressure reads and parses the memory pressure (psi) for the provided pid.
     fn memory_pressure(&self, pid: i32) -> Result<PressureData, Error> {
-        let path = self.system.path_for_memory_pressure(pid)?;
-        self.parse_pressure_data_file(path)
+        self.parse_pressure_data_file(self.system.path_for_memory_pressure(pid)?)
     }
 
     // parse_pressure_data_file parses a kernel psi file, the file format is as follow:
@@ -158,24 +155,19 @@ impl<T: cgroups::SystemProvider> ProcFsReader<T> {
     // the maximum allowed. This data is read from the cgroup's /proc files.
     fn memory_stats(&self, pid: i32) -> Result<(f32, f32), Error> {
         let path = self.system.path_to_memory_max(pid)?;
-        let memory_max = fs::read_to_string(path)?;
-        let memory_max: i32 = memory_max.trim().parse()?;
+        let memory_max: f32 = fs::read_to_string(path)?.trim().parse()?;
 
         let path = self.system.path_to_memory_current(pid)?;
-        let memory_current = fs::read_to_string(path)?;
-        let memory_current: i32 = memory_current.trim().parse()?;
-        Ok((memory_current as f32, memory_max as f32))
+        let memory_current: f32 = fs::read_to_string(path)?.trim().parse()?;
+
+        Ok((memory_current, memory_max))
     }
 
     // has_memory_limit returns true if the provided pid has an upper limit on how much memory it
     // can use. Kernel sets the limit to the string 'max' if no upper limit is set.
     fn has_memory_limit(&self, pid: i32) -> Result<bool, Error> {
         let path = self.system.path_to_memory_max(pid)?;
-        let memory_max = fs::read_to_string(path)?;
-        match memory_max.trim().parse::<i32>() {
-            Ok(_) => Ok(true),
-            Err(_) => Ok(false),
-        }
+        Ok(fs::read_to_string(path)?.trim().parse::<i32>().is_ok())
     }
 
     // oom_score returns the oom score for a given pid. The score is calculated by reading the
@@ -185,12 +177,10 @@ impl<T: cgroups::SystemProvider> ProcFsReader<T> {
     // we are not taking that into account.
     fn oom_score(&self, pid: i32) -> Result<i32, Error> {
         let path = self.system.path_for_oom_score(pid);
-        let oom_score = fs::read_to_string(path)?;
-        let oom_score: i32 = oom_score.trim().parse()?;
+        let oom_score: i32 = fs::read_to_string(path)?.trim().parse()?;
 
         let path = self.system.path_for_oom_score_adj(pid);
-        let oom_score_adj = fs::read_to_string(path)?;
-        let oom_score_adj: i32 = oom_score_adj.trim().parse()?;
+        let oom_score_adj: i32 = fs::read_to_string(path)?.trim().parse()?;
 
         Ok(oom_score + oom_score_adj)
     }
@@ -199,11 +189,9 @@ impl<T: cgroups::SystemProvider> ProcFsReader<T> {
     // where the command and the arguments are separated by a \0. This function returns only
     // the first part (ignores the arguments).
     fn cmdline(&self, pid: i32) -> Result<String, Error> {
-        let path = self.system.path_for_cmdline(pid);
-        let cmdline = fs::read_to_string(path)?;
-        let slices = cmdline.split('\0');
-        let slices: Vec<&str> = slices.collect();
-        Ok(slices[0].to_string())
+        fs::read_to_string(self.system.path_for_cmdline(pid))
+            .map(|s| s.split('\0').next().unwrap_or_default().to_string())
+            .map_err(Into::into)
     }
 }
 
@@ -214,7 +202,7 @@ pub trait ProcessProvider {
     fn send_signal(&self, pid: i32, sig: signal::Signal) -> Result<(), Error>;
 }
 
-impl<T: cgroups::SystemProvider> ProcessProvider for ProcFsReader<T> {
+impl<T: system::Provider> ProcessProvider for ProcFsReader<T> {
     // list processes entries under the /proc filesystem and returns a list of Process. Due to the
     // nature of /proc filesystem there are no guarantees that the returned list is the complete set,
     // processes come and go as they please. A failure to read a path in /proc is considered a normal
@@ -224,7 +212,7 @@ impl<T: cgroups::SystemProvider> ProcessProvider for ProcFsReader<T> {
             .filter_map(|entry| entry.ok())
             .filter(|entry| entry.metadata().map(|m| m.is_dir()).unwrap_or(false))
             .filter_map(|entry| {
-                let pid: i32 = entry.path().as_path().file_name()?.to_str()?.parse().ok()?;
+                let pid: i32 = entry.path().file_name()?.to_str()?.parse().ok()?;
                 Some(Process {
                     pid: pid,
                     cmdline: self.cmdline(pid).unwrap_or_default(),
@@ -247,8 +235,8 @@ impl<T: cgroups::SystemProvider> ProcessProvider for ProcFsReader<T> {
         }
 
         Ok(match self.system.cgroups_version()? {
-            cgroups::CGroupsVersions::CGroupsV1 => result,
-            cgroups::CGroupsVersions::CGroupsV2 => {
+            system::CGroupsVersions::CGroupsV1 => result,
+            system::CGroupsVersions::CGroupsV2 => {
                 result.pressure = self.pressure(pid)?;
                 result
             }

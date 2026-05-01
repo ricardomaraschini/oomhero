@@ -9,10 +9,10 @@ pub enum CGroupsVersions {
     CGroupsV2,
 }
 
-// SystemProvider is a trait implemented by any entity capable of providing information about
-// the operating system. It provide tooling to find the right paths for crucial files we need
+// Provider is a trait implemented by any entity capable of providing information about the
+// operating system. It provide tooling to find the right paths for crucial files we need
 // access to.
-pub trait SystemProvider {
+pub trait Provider {
     fn cgroups_version(&self) -> Result<CGroupsVersions, Error>;
     fn path_to_memory_max(&self, pid: i32) -> Result<String, Error>;
     fn path_to_memory_current(&self, pid: i32) -> Result<String, Error>;
@@ -44,7 +44,7 @@ impl SystemCGroups {
     }
 }
 
-impl SystemProvider for SystemCGroups {
+impl Provider for SystemCGroups {
     // cgroups_version returns the cgroups version supported by the kernel. This is determined by
     // inspecting the /sys/fs filesystem.
     fn cgroups_version(&self) -> Result<CGroupsVersions, Error> {
