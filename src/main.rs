@@ -53,7 +53,7 @@ fn main() {
         let tx = events::Transmitter::new(tx);
         let syscgroups = cgroups::SystemCGroups::default();
         let processes_explorer = processes::ProcFsReader::new(syscgroups);
-        let monitor = daemons::Monitor::new(&tx, &flags.thresholds, processes_explorer)
+        let monitor = daemons::Monitor::new(tx, flags.thresholds, processes_explorer)
             .with_cooldown_interval(flags.cooldown_interval)
             .with_loop_interval(flags.loop_interval)
             .with_warning_signal(flags.warning_signal)

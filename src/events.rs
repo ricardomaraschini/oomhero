@@ -135,6 +135,22 @@ impl Event {
     }
 }
 
+// Sender trait is implemented by event senders.
+pub trait Sender {
+    fn send(&self, event: Event);
+}
+
+impl Sender for Transmitter {
+    // send sends the event through the provided Sender. In case of failure the error seen
+    // at transmission time is logged. We lose the original event but we have a bigger fish
+    // to fry if we ever encounter this.
+    fn send(&self, event: Event) {
+        if let Err(err) = self.channel.send(event) {
+            warn!("error sending message: {err}");
+        }
+    }
+}
+
 // Transmitter is an entity capable of transmitting events.
 pub struct Transmitter {
     channel: mpsc::Sender<Event>,
@@ -144,14 +160,5 @@ impl Transmitter {
     // new returns a new transmitter capable of transmitting events through the provided channel.
     pub fn new(channel: mpsc::Sender<Event>) -> Self {
         Transmitter { channel }
-    }
-
-    // send sends the event through the provided Sender. In case of failure the error seen
-    // at transmission time is logged. We lose the original event but we have a bigger fish
-    // to fry if we ever encounter this.
-    pub fn send(&self, event: Event) {
-        if let Err(err) = self.channel.send(event) {
-            warn!("error sending message: {err}");
-        }
     }
 }

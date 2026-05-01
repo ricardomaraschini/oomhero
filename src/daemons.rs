@@ -21,9 +21,9 @@ struct SignalRecord {
 // something to be used unbounded. cooldown_interval_secs governs how often we can send the same
 // signal towards the same pid while last_signals keeps track of previously sent signals. We limit
 // the historic data to 1_000 different pids, we do not expect this to ever go beyond this.
-pub struct Monitor<'a, T: processes::ProcessProvider> {
-    sink: &'a events::Transmitter,
-    thresholds: &'a arguments::Thresholds,
+pub struct Monitor<T: processes::ProcessProvider, S: events::Sender> {
+    sink: S,
+    thresholds: arguments::Thresholds,
     processes_discover: T,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
@@ -32,15 +32,11 @@ pub struct Monitor<'a, T: processes::ProcessProvider> {
     cooldown_interval: time::Duration,
 }
 
-impl<'a, T: processes::ProcessProvider> Monitor<'a, T> {
+impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
     // new returns a new cgroups monitor. Sink is used to send all events, warning and critical are
     // used to assess the memory usage while last_signals is used to keep track when was the last
     // time we signaled a process.
-    pub fn new(
-        sink: &'a events::Transmitter,
-        thresholds: &'a arguments::Thresholds,
-        processes_discover: T,
-    ) -> Self {
+    pub fn new(sink: S, thresholds: arguments::Thresholds, processes_discover: T) -> Self {
         Monitor {
             sink,
             thresholds,
