@@ -50,11 +50,10 @@ fn main() {
     let (tx, rx) = sync::mpsc::channel::<events::Event>();
 
     thread::spawn(move || {
-        let syscgroups = cgroups::SystemCGroups::default();
-        let processes_explorer = processes::ProcFsReader::new(&syscgroups);
-
         let tx = events::Transmitter::new(tx);
-        let monitor = daemons::Monitor::new(&tx, &flags.thresholds, &processes_explorer)
+        let syscgroups = cgroups::SystemCGroups::default();
+        let processes_explorer = processes::ProcFsReader::new(syscgroups);
+        let monitor = daemons::Monitor::new(&tx, &flags.thresholds, processes_explorer)
             .with_cooldown_interval(flags.cooldown_interval)
             .with_loop_interval(flags.loop_interval)
             .with_warning_signal(flags.warning_signal)
@@ -71,8 +70,10 @@ fn main() {
             continue;
         }
 
-        if let Some(previous_event) = last_messages.get(&event.pid) && !event.deviates_significantly(&previous_event) {
-                continue;
+        if let Some(previous_event) = last_messages.get(&event.pid)
+            && !event.deviates_significantly(&previous_event)
+        {
+            continue;
         }
 
         last_messages.insert(event.pid, event.clone());

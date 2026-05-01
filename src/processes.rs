@@ -67,13 +67,13 @@ pub struct Process {
 // ProcFsReader reads process information from the /proc filesystem using the provided CGroupProvider
 // for cgroup-related data.
 #[derive(Clone)]
-pub struct ProcFsReader<'a> {
-    cgroups: &'a dyn cgroups::CGroupProvider,
+pub struct ProcFsReader<T: cgroups::CGroupProvider> {
+    cgroups: T,
 }
 
-impl<'a> ProcFsReader<'a> {
+impl<T: cgroups::CGroupProvider> ProcFsReader<T> {
     // new returns a new ProcFsReader using the provided CGroupProvider.
-    pub fn new(cgroups: &'a impl cgroups::CGroupProvider) -> Self {
+    pub fn new(cgroups: T) -> Self {
         ProcFsReader { cgroups }
     }
 
@@ -135,7 +135,7 @@ impl<'a> ProcFsReader<'a> {
     // parsed and then populated in the provided mutable PressureAverages.
     fn parse_pressure_averages(
         &self,
-        tokens: str::SplitWhitespace<'a>,
+        tokens: str::SplitWhitespace,
         averages: &mut PressureAverages,
     ) -> Result<(), Error> {
         for token in tokens {
@@ -215,7 +215,7 @@ pub trait ProcessProvider {
     fn send_signal(&self, pid: i32, sig: signal::Signal) -> Result<(), Error>;
 }
 
-impl<'a> ProcessProvider for ProcFsReader<'a> {
+impl<T: cgroups::CGroupProvider> ProcessProvider for ProcFsReader<T> {
     // list processes entries under the /proc filesystem and returns a list of Process. Due to the
     // nature of /proc filesystem there are no guarantees that the returned list is the complete set,
     // processes come and go as they please. A failure to read a path in /proc is considered a normal

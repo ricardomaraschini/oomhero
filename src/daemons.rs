@@ -21,10 +21,10 @@ struct SignalRecord {
 // something to be used unbounded. cooldown_interval_secs governs how often we can send the same
 // signal towards the same pid while last_signals keeps track of previously sent signals. We limit
 // the historic data to 1_000 different pids, we do not expect this to ever go beyond this.
-pub struct Monitor<'a> {
+pub struct Monitor<'a, T: processes::ProcessProvider> {
     sink: &'a events::Transmitter,
     thresholds: &'a arguments::Thresholds,
-    processes_discover: &'a dyn processes::ProcessProvider,
+    processes_discover: T,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
     warning_signal: signal::Signal,
@@ -32,14 +32,14 @@ pub struct Monitor<'a> {
     cooldown_interval: time::Duration,
 }
 
-impl<'a> Monitor<'a> {
+impl<'a, T: processes::ProcessProvider> Monitor<'a, T> {
     // new returns a new cgroups monitor. Sink is used to send all events, warning and critical are
     // used to assess the memory usage while last_signals is used to keep track when was the last
     // time we signaled a process.
     pub fn new(
         sink: &'a events::Transmitter,
         thresholds: &'a arguments::Thresholds,
-        processes_discover: &'a impl processes::ProcessProvider,
+        processes_discover: T,
     ) -> Self {
         Monitor {
             sink,
@@ -165,7 +165,9 @@ impl<'a> Monitor<'a> {
         cd: &processes::CollectedData,
         desc: &str,
     ) {
-        if let Some(last_signal) = self.last_signals.get(&process.pid) && last_signal.kind == sig {
+        if let Some(last_signal) = self.last_signals.get(&process.pid)
+            && last_signal.kind == sig
+        {
             let elapsed = time::Instant::now() - last_signal.when;
             if elapsed < self.cooldown_interval {
                 return;
