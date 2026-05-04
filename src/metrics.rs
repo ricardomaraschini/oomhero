@@ -2,15 +2,20 @@ use super::errors::Error;
 use super::processes;
 use metrics::gauge;
 use metrics_exporter_prometheus;
+use metrics_util::MetricKindMask;
+use std::time;
 
 #[derive(Default)]
 pub struct Server {}
 
 impl Server {
     // start runs the http handler for the metrics endpoint. this listens on port 9000 by default.
-    // no customizations are allowed yet.
+    // no customizations are allowed yet. Metrics use pid and cmdline as labels so we impose an
+    // idle timeout of 1 minute (i.e. if a pair of pid x cmdline is absent for 1 minute it will be
+    // trimmed out after the next prometheus scrap).
     pub fn start(&self) -> Result<(), Error> {
         metrics_exporter_prometheus::PrometheusBuilder::new()
+            .idle_timeout(MetricKindMask::GAUGE, Some(time::Duration::from_mins(1)))
             .install()
             .map_err(Into::into)
     }
