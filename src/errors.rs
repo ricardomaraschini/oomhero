@@ -1,3 +1,4 @@
+use metrics_exporter_prometheus;
 use nix;
 use std::io;
 use std::num;
@@ -18,6 +19,9 @@ pub enum Error {
 
     #[error(transparent)]
     ParseFloatError(#[from] num::ParseFloatError),
+
+    #[error(transparent)]
+    BuildError(#[from] metrics_exporter_prometheus::BuildError),
 
     #[error("{0}")]
     Message(String),

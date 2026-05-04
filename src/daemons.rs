@@ -1,6 +1,8 @@
 use super::arguments;
 use super::events;
+use super::metrics;
 use super::processes;
+use log::warn;
 use moka::sync::Cache;
 use nix::sys::signal;
 use std::process;
@@ -30,6 +32,7 @@ pub struct Monitor<T: processes::ProcessProvider, S: events::Sender> {
     warning_signal: signal::Signal,
     critical_signal: signal::Signal,
     cooldown_interval: time::Duration,
+    metrics_server: metrics::Server,
 }
 
 impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
@@ -46,6 +49,7 @@ impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
             warning_signal: signal::Signal::SIGUSR1,
             critical_signal: signal::Signal::SIGUSR2,
             cooldown_interval: time::Duration::from_secs(30),
+            metrics_server: metrics::Server::default(),
         }
     }
 
@@ -83,6 +87,10 @@ impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
     // when running this on a cluster you better set proper resource.limits.cpu values as that is
     // what guides how often we run the loops.
     pub fn run(&self) {
+        if let Err(error) = self.metrics_server.start() {
+            warn!("error starting metrics server: {}", error);
+        }
+
         let oomhero_pid = process::id() as i32;
         let mut last_pass = time::Instant::now();
         let mut passes: i64 = 0;
@@ -117,6 +125,11 @@ impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
                         continue;
                     }
                 };
+
+                // we only report metrics once the passes counter zeroes out.
+                if passes == 0 {
+                    self.metrics_server.report_collected_data(&process, &cd);
+                }
 
                 let (warning, critical) = self.thresholds.check_against(&cd);
                 if warning || critical {
