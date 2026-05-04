@@ -65,6 +65,30 @@ PSI metrics can be fine-tuned using two parameters:
   - `avg300`: 300-second moving average (smoothest, least noise)
   - Shorter windows react faster but may trigger on transient spikes
 
+## Metrics
+
+OOMHero exposes Prometheus metrics on port `9000` by default. These metrics provide
+real-time visibility into the resource usage and pressure of all processes being
+monitored.
+
+| Metric Name | Type | Labels | Description |
+|-------------|------|--------|-------------|
+| `memory_usage` | Gauge | `pid`, `cmdline` | Current memory usage as a percentage of the limit |
+| `oom_score` | Gauge | `pid`, `cmdline` | Current OOM score (including adjustment) |
+| `memory_pressure` | Gauge | `pid`, `cmdline`, `severity_level`, `severity_window` | Memory pressure stall information |
+| `io_pressure` | Gauge | `pid`, `cmdline`, `severity_level`, `severity_window` | I/O pressure stall information |
+| `cpu_pressure` | Gauge | `pid`, `cmdline`, `severity_level`, `severity_window` | CPU pressure stall information |
+
+### Metric Labels
+
+- `pid`: Process ID
+- `cmdline`: The command line of the process
+- `severity_level`: Either `some` or `full`
+- `severity_window`: One of `avg10`, `avg60`, `avg300`, or `total`
+
+Metrics have an idle timeout of 1 minute; if a process (identified by pid and
+cmdline) is not seen for 1 minute, its metrics will be removed.
+
 ## Requirements
 
 - Kubernetes cluster with Linux nodes (kernel 4.20+ for full PSI support)
