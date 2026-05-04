@@ -36,8 +36,8 @@ impl Server {
     // have gauges for memory, io and cpu pressures.
     fn report_pressure(&self, p: &processes::Process, d: &processes::CollectedData) {
         self.report_pressure_data("memory_pressure", p, &d.pressure.memory);
-        self.report_pressure_data("io_pressure", p, &d.pressure.memory);
-        self.report_pressure_data("cpu_pressure", p, &d.pressure.memory);
+        self.report_pressure_data("io_pressure", p, &d.pressure.io);
+        self.report_pressure_data("cpu_pressure", p, &d.pressure.cpu);
     }
 
     // report_pressure_data updates the gauge representing a specific pressure data, it can be one
