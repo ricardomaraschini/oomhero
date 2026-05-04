@@ -150,7 +150,7 @@ impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
 
             passes += 1;
             let since_last_pass = time::Instant::now() - last_pass;
-            if since_last_pass.as_secs() < 60 {
+            if since_last_pass.as_secs() < 30 {
                 continue;
             }
 
