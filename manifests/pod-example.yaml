@@ -22,8 +22,6 @@ spec:
       limits:
         memory: "512Mi"
         cpu: "250m"
-  - name: nginx
-    image: docker.io/nginx:latest
   - name: oomhero
     image: docker.io/ricardomaraschini/oomhero:v2
     imagePullPolicy: Always

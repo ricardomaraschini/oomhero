@@ -168,19 +168,19 @@ impl fmt::Display for Event {
     fn fmt(&self, fp: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(fp, "pid:{} ", self.pid)?;
         if self.cmdline != "" {
-            write!(fp, "cmdline: {}% ", self.cmdline)?;
+            write!(fp, "cmdline:{} ", self.cmdline)?;
         }
         if self.memory_usage > 0. {
-            write!(fp, "memory_usage:{}% ", self.memory_usage)?;
+            write!(fp, "memory_usage:{:.2}% ", self.memory_usage)?;
         }
         if self.memory_pressure > 0. {
-            write!(fp, "memory_pressure:{}% ", self.memory_pressure)?;
+            write!(fp, "memory_pressure:{:.2}% ", self.memory_pressure)?;
         }
         if self.io_pressure > 0. {
-            write!(fp, "io_pressure:{}% ", self.io_pressure)?;
+            write!(fp, "io_pressure:{:.2}% ", self.io_pressure)?;
         }
         if self.cpu_pressure > 0. {
-            write!(fp, "cpu_pressure:{}% ", self.io_pressure)?;
+            write!(fp, "cpu_pressure:{:.2}% ", self.io_pressure)?;
         }
         write!(fp, "message: {}", self.message)?;
         Ok(())

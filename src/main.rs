@@ -4,10 +4,10 @@ use log::trace;
 use log::warn;
 use moka::sync::Cache;
 use oomhero::arguments;
-use oomhero::system;
 use oomhero::daemons;
 use oomhero::events;
 use oomhero::processes;
+use oomhero::system;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
@@ -31,7 +31,7 @@ fn main() {
     }
 
     if let Err(err) = flags.thresholds.validate() {
-        warn!("{:?}", err);
+        warn!("{}", err);
         process::exit(1);
     }
 
