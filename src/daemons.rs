@@ -5,6 +5,7 @@ use super::processes;
 use log::warn;
 use moka::sync::Cache;
 use nix::sys::signal;
+use nix::unistd;
 use std::process;
 use std::thread;
 use std::time;
@@ -183,7 +184,8 @@ impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
             }
         }
 
-        if let Err(err) = self.processes_discover.send_signal(process.pid, sig) {
+        let pid = unistd::Pid::from_raw(process.pid);
+        if let Err(err) = signal::kill(pid, sig) {
             self.sink.send(
                 events::Event::high_prio()
                     .with_process_collected_data(process, cd)

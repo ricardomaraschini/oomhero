@@ -1,7 +1,5 @@
 use super::errors::Error;
 use super::system;
-use nix::sys::signal;
-use nix::unistd;
 use std::fs;
 use std::io;
 use std::io::BufRead;
@@ -200,7 +198,6 @@ impl<T: system::Provider> ProcFsReader<T> {
 pub trait ProcessProvider {
     fn list(&self) -> Result<Vec<Process>, Error>;
     fn collect_process_data(&self, pid: i32) -> Result<CollectedData, Error>;
-    fn send_signal(&self, pid: i32, sig: signal::Signal) -> Result<(), Error>;
 }
 
 impl<T: system::Provider> ProcessProvider for ProcFsReader<T> {
@@ -242,12 +239,5 @@ impl<T: system::Provider> ProcessProvider for ProcFsReader<T> {
                 result
             }
         })
-    }
-
-    // send_signal sends a signal to the process pointed by the pid.
-    fn send_signal(&self, pid: i32, sig: signal::Signal) -> Result<(), Error> {
-        let pid = unistd::Pid::from_raw(pid);
-        signal::kill(pid, sig)?;
-        Ok(())
     }
 }
