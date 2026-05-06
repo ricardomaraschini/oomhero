@@ -140,32 +140,52 @@ fn collect_process_data_full_pressure_data() -> Result<(), errors::Error> {
     let mock = mock_for_fake_process(&proc_name);
     let proc = processes::ProcFsReader::new(mock);
     let result = proc.collect_process_data(1)?;
-    assert_eq!(result.pressure.memory.some.avg10, 1.);
-    assert_eq!(result.pressure.memory.some.avg60, 2.);
-    assert_eq!(result.pressure.memory.some.avg300, 3.);
-    assert_eq!(result.pressure.memory.some.total, 4.);
-    assert_eq!(result.pressure.memory.full.avg10, 5.);
-    assert_eq!(result.pressure.memory.full.avg60, 6.);
-    assert_eq!(result.pressure.memory.full.avg300, 7.);
-    assert_eq!(result.pressure.memory.full.total, 8.);
 
-    assert_eq!(result.pressure.io.some.avg10, 9.);
-    assert_eq!(result.pressure.io.some.avg60, 10.);
-    assert_eq!(result.pressure.io.some.avg300, 11.);
-    assert_eq!(result.pressure.io.some.total, 12.);
-    assert_eq!(result.pressure.io.full.avg10, 13.);
-    assert_eq!(result.pressure.io.full.avg60, 14.);
-    assert_eq!(result.pressure.io.full.avg300, 15.);
-    assert_eq!(result.pressure.io.full.total, 16.);
+    let expected = processes::Pressure {
+        memory: processes::PressureData {
+            some: processes::PressureAverages {
+                avg10: 1.,
+                avg60: 2.,
+                avg300: 3.,
+                total: 4.,
+            },
+            full: processes::PressureAverages {
+                avg10: 5.,
+                avg60: 6.,
+                avg300: 7.,
+                total: 8.,
+            },
+        },
+        io: processes::PressureData {
+            some: processes::PressureAverages {
+                avg10: 9.,
+                avg60: 10.,
+                avg300: 11.,
+                total: 12.,
+            },
+            full: processes::PressureAverages {
+                avg10: 13.,
+                avg60: 14.,
+                avg300: 15.,
+                total: 16.,
+            },
+        },
+        cpu: processes::PressureData {
+            some: processes::PressureAverages {
+                avg10: 17.,
+                avg60: 18.,
+                avg300: 19.,
+                total: 20.,
+            },
+            full: processes::PressureAverages {
+                avg10: 21.,
+                avg60: 22.,
+                avg300: 23.,
+                total: 24.,
+            },
+        },
+    };
 
-    assert_eq!(result.pressure.cpu.some.avg10, 17.);
-    assert_eq!(result.pressure.cpu.some.avg60, 18.);
-    assert_eq!(result.pressure.cpu.some.avg300, 19.);
-    assert_eq!(result.pressure.cpu.some.total, 20.);
-    assert_eq!(result.pressure.cpu.full.avg10, 21.);
-    assert_eq!(result.pressure.cpu.full.avg60, 22.);
-    assert_eq!(result.pressure.cpu.full.avg300, 23.);
-    assert_eq!(result.pressure.cpu.full.total, 24.);
-
+    assert_eq!(result.pressure, expected);
     Ok(())
 }
