@@ -1,0 +1,15 @@
+name: tests (pr)
+on:
+  pull_request:
+    branches:
+    - main
+jobs:
+  build:
+    name: run tests
+    runs-on: ubuntu-latest
+    - name: check out code
+      uses: actions/checkout@v4
+    - name: run tests
+      run: make test-verbose
+    - name: build test binary
+      run: make build
