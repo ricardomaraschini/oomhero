@@ -18,3 +18,11 @@ image-push:
 
 .PHONY: image-build-push
 image-build-push: image-build image-push
+
+.PHONY: test
+test:
+	cargo test
+
+.PHONY: test-verbose
+test-verbose:
+	cargo test -- --nocapture

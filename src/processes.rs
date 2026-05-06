@@ -5,6 +5,7 @@ use nix::unistd;
 use std::fs;
 use std::io;
 use std::io::BufRead;
+use std::path;
 use std::str;
 
 // Pressure gathers all the pressure data we read for each single process. We collect pressure
@@ -87,24 +88,24 @@ impl<T: system::Provider> ProcFsReader<T> {
 
     // cpu_pressure reads and parses the cpu pressure (psi) for the provided pid.
     fn cpu_pressure(&self, pid: i32) -> Result<PressureData, Error> {
-        self.parse_pressure_data_file(self.system.path_for_cpu_pressure(pid)?)
+        self.parse_pressure_data_file(self.system.path_to_cpu_pressure(pid)?)
     }
 
     // io_pressure reads and parses the io pressure (psi) for the provided pid.
     fn io_pressure(&self, pid: i32) -> Result<PressureData, Error> {
-        self.parse_pressure_data_file(self.system.path_for_io_pressure(pid)?)
+        self.parse_pressure_data_file(self.system.path_to_io_pressure(pid)?)
     }
 
     // memory_pressure reads and parses the memory pressure (psi) for the provided pid.
     fn memory_pressure(&self, pid: i32) -> Result<PressureData, Error> {
-        self.parse_pressure_data_file(self.system.path_for_memory_pressure(pid)?)
+        self.parse_pressure_data_file(self.system.path_to_memory_pressure(pid)?)
     }
 
     // parse_pressure_data_file parses a kernel psi file, the file format is as follow:
     //
     // some avg10=0.00 avg60=0.00 avg300=0.00 total=0
     // full avg10=0.00 avg60=0.00 avg300=0.00 total=0
-    fn parse_pressure_data_file(&self, path: String) -> Result<PressureData, Error> {
+    fn parse_pressure_data_file(&self, path: path::PathBuf) -> Result<PressureData, Error> {
         let mut result = PressureData::default();
         let fp = fs::File::open(path)?;
 
@@ -176,10 +177,10 @@ impl<T: system::Provider> ProcFsReader<T> {
     // an OOMKill event). XXX processes owned by "root" have an automatic adjustment of -30 but
     // we are not taking that into account.
     fn oom_score(&self, pid: i32) -> Result<i32, Error> {
-        let path = self.system.path_for_oom_score(pid);
+        let path = self.system.path_to_oom_score(pid);
         let oom_score: i32 = fs::read_to_string(path)?.trim().parse()?;
 
-        let path = self.system.path_for_oom_score_adj(pid);
+        let path = self.system.path_to_oom_score_adj(pid);
         let oom_score_adj: i32 = fs::read_to_string(path)?.trim().parse()?;
 
         Ok(oom_score + oom_score_adj)
@@ -189,7 +190,7 @@ impl<T: system::Provider> ProcFsReader<T> {
     // where the command and the arguments are separated by a \0. This function returns only
     // the first part (ignores the arguments).
     fn cmdline(&self, pid: i32) -> Result<String, Error> {
-        fs::read_to_string(self.system.path_for_cmdline(pid))
+        fs::read_to_string(self.system.path_to_cmdline(pid))
             .map(|s| s.split('\0').next().unwrap_or_default().to_string())
             .map_err(Into::into)
     }
@@ -208,7 +209,7 @@ impl<T: system::Provider> ProcessProvider for ProcFsReader<T> {
     // processes come and go as they please. A failure to read a path in /proc is considered a normal
     // occurrence and is just skipped.
     fn list(&self) -> Result<Vec<Process>, Error> {
-        Ok(fs::read_dir("/proc")?
+        Ok(fs::read_dir(self.system.path_to_procfs())?
             .filter_map(|entry| entry.ok())
             .filter(|entry| entry.metadata().map(|m| m.is_dir()).unwrap_or(false))
             .filter_map(|entry| {
