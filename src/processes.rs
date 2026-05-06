@@ -15,6 +15,14 @@ pub struct Pressure {
     pub cpu: PressureData,
 }
 
+impl PartialEq for Pressure {
+    // eq checks for equality between two pressure objects. We implement this trait mostly so our
+    // test are shorter.
+    fn eq(&self, other: &Pressure) -> bool {
+        self.memory == other.memory && self.io == other.io && self.cpu == other.cpu
+    }
+}
+
 // PressureData keeps track of the pressure as reported by kernel psi. For further information
 // see https://docs.kernel.org/accounting/psi.html. Content of this property is read directly
 // from the kernel {cpu,io,memory}.pressure file.
@@ -22,6 +30,14 @@ pub struct Pressure {
 pub struct PressureData {
     pub some: PressureAverages,
     pub full: PressureAverages,
+}
+
+impl PartialEq for PressureData {
+    // eq checks for equality between two pressure data objects. We implement this trait mostly
+    // so our test are shorter.
+    fn eq(&self, other: &PressureData) -> bool {
+        self.some == other.some && self.full == other.full
+    }
 }
 
 // PressureAverages keeps the averages for 10, 60 and 300 data as present in the kernel psi file.
@@ -32,6 +48,17 @@ pub struct PressureAverages {
     pub avg60: f32,
     pub avg300: f32,
     pub total: f32,
+}
+
+impl PartialEq for PressureAverages {
+    // eq checks for equality between two pressure average objects. We implement this trait mostly
+    // so our test are shorter.
+    fn eq(&self, other: &PressureAverages) -> bool {
+        self.avg10 == other.avg10
+            && self.avg60 == other.avg60
+            && self.avg300 == other.avg300
+            && self.total == other.total
+    }
 }
 
 // CollectedData holds the collected data for a process. Here, other than the pressure information
