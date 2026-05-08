@@ -4,4 +4,5 @@ pub mod errors;
 pub mod events;
 pub mod metrics;
 pub mod processes;
+pub mod signals;
 pub mod system;

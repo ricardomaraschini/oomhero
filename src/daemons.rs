@@ -2,10 +2,10 @@ use super::arguments;
 use super::events;
 use super::metrics;
 use super::processes;
+use super::signals;
 use log::warn;
 use moka::sync::Cache;
 use nix::sys::signal;
-use nix::unistd;
 use std::process;
 use std::thread;
 use std::time;
@@ -24,7 +24,8 @@ struct SignalRecord {
 // something to be used unbounded. cooldown_interval_secs governs how often we can send the same
 // signal towards the same pid while last_signals keeps track of previously sent signals. We limit
 // the historic data to 1_000 different pids, we do not expect this to ever go beyond this.
-pub struct Monitor<T: processes::ProcessProvider, S: events::Sender> {
+pub struct Monitor<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> {
+    signal_sender: U,
     sink: S,
     thresholds: arguments::Thresholds,
     processes_discover: T,
@@ -36,12 +37,18 @@ pub struct Monitor<T: processes::ProcessProvider, S: events::Sender> {
     metrics_server: metrics::Server,
 }
 
-impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
+impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monitor<T, S, U> {
     // new returns a new cgroups monitor. Sink is used to send all events, warning and critical are
     // used to assess the memory usage while last_signals is used to keep track when was the last
     // time we signaled a process.
-    pub fn new(sink: S, thresholds: arguments::Thresholds, processes_discover: T) -> Self {
+    pub fn new(
+        sink: S,
+        thresholds: arguments::Thresholds,
+        processes_discover: T,
+        signal_sender: U,
+    ) -> Self {
         Monitor {
+            signal_sender,
             sink,
             thresholds,
             processes_discover,
@@ -184,8 +191,7 @@ impl<T: processes::ProcessProvider, S: events::Sender> Monitor<T, S> {
             }
         }
 
-        let pid = unistd::Pid::from_raw(process.pid);
-        if let Err(err) = signal::kill(pid, sig) {
+        if let Err(err) = self.signal_sender.send(sig, process.pid) {
             self.sink.send(
                 events::Event::high_prio()
                     .with_process_collected_data(process, cd)

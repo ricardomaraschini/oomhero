@@ -1,5 +1,6 @@
 use super::processes;
 use log::warn;
+use mockall::automock;
 use std::cmp::Ordering;
 use std::fmt;
 use std::sync::mpsc;
@@ -137,6 +138,7 @@ impl Event {
 }
 
 // Sender trait is implemented by event senders.
+#[automock]
 pub trait Sender {
     fn send(&self, event: Event);
 }

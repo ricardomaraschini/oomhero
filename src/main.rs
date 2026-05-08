@@ -7,6 +7,7 @@ use oomhero::arguments;
 use oomhero::daemons;
 use oomhero::events;
 use oomhero::processes;
+use oomhero::signals;
 use oomhero::system;
 use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
@@ -53,11 +54,13 @@ fn main() {
         let tx = events::Transmitter::new(tx);
         let syscgroups = system::SystemCGroups::default();
         let processes_explorer = processes::ProcFsReader::new(syscgroups);
-        let monitor = daemons::Monitor::new(tx, flags.thresholds, processes_explorer)
-            .with_cooldown_interval(flags.cooldown_interval)
-            .with_loop_interval(flags.loop_interval)
-            .with_warning_signal(flags.warning_signal)
-            .with_critical_signal(flags.critical_signal);
+        let signal_sender = signals::SignalSender::default();
+        let monitor =
+            daemons::Monitor::new(tx, flags.thresholds, processes_explorer, signal_sender)
+                .with_cooldown_interval(flags.cooldown_interval)
+                .with_loop_interval(flags.loop_interval)
+                .with_warning_signal(flags.warning_signal)
+                .with_critical_signal(flags.critical_signal);
         monitor.run();
     });
 
