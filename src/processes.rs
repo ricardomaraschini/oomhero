@@ -1,5 +1,6 @@
 use super::errors::Error;
 use super::system;
+use mockall::automock;
 use std::fs;
 use std::io;
 use std::io::BufRead;
@@ -222,6 +223,7 @@ impl<T: system::Provider> ProcFsReader<T> {
 }
 
 // ProcessProvider is a trait implemented by any entity capable of providing process information.
+#[automock]
 pub trait ProcessProvider {
     fn list(&self) -> Result<Vec<Process>, Error>;
     fn collect_process_data(&self, pid: i32) -> Result<CollectedData, Error>;
