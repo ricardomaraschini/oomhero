@@ -21,8 +21,8 @@ image-build-push: image-build image-push
 
 .PHONY: test
 test:
-	cargo test
+	timeout 5m cargo test
 
 .PHONY: test-verbose
 test-verbose:
-	cargo test -- --nocapture
+	timeout 5m cargo test -- --nocapture

@@ -54,18 +54,18 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
             Ok(())
         });
 
+    // wait for the monitor to a few times and then stop it.
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(10))
-                .with_critical_signal(signal::SIGKILL)
-                .with_cooldown_interval(time::Duration::from_secs(60));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(100));
+        _ = tx.send(true);
     });
 
-    // wait for the monitor to a few times and then stop it.
-    std::thread::sleep(time::Duration::from_millis(100));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(10))
+            .with_critical_signal(signal::SIGKILL)
+            .with_cooldown_interval(time::Duration::from_secs(60));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -77,7 +77,10 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
         assert_eq!(evt.pid, 2);
-        assert_eq!(evt.message, String::from("process usage within limits"));
+        assert_eq!(
+            evt.message,
+            String::from("warning signal sent successfully")
+        );
     });
 
     let thresholds = arguments::Thresholds {
@@ -127,18 +130,23 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
         .with(predicate::eq(oomhero_pid))
         .times(0);
 
-    let signals_sender = signals::MockSender::new();
-
-    thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+    let mut signals_sender = signals::MockSender::new();
+    signals_sender.expect_send().returning(|sig, pid| {
+        assert_eq!(sig, signal::SIGUSR1);
+        assert_eq!(pid, 2);
+        Ok(())
     });
 
-    std::thread::sleep(time::Duration::from_millis(100));
-    _ = tx.send(true);
+    thread::spawn(move || {
+        std::thread::sleep(time::Duration::from_millis(100));
+        _ = tx.send(true);
+    });
+
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -200,15 +208,15 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
     });
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(100));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(100));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -255,15 +263,15 @@ fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<
     signals_sender.expect_send().never();
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(200));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(200));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -316,16 +324,16 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
     });
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_critical_signal(signal::SIGKILL)
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(200));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(200));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_critical_signal(signal::SIGKILL)
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -387,16 +395,16 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
     });
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_critical_signal(signal::SIGABRT)
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(200));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(200));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_critical_signal(signal::SIGABRT)
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -460,16 +468,16 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
     });
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_critical_signal(signal::SIGKILL)
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(200));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(200));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_critical_signal(signal::SIGKILL)
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -535,17 +543,17 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
     });
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_critical_signal(signal::SIGKILL)
-                .with_warning_signal(signal::SIGUSR1)
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(200));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(200));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_critical_signal(signal::SIGKILL)
+            .with_warning_signal(signal::SIGUSR1)
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -598,15 +606,15 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
     });
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(200));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(200));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -666,15 +674,15 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
     let signals_sender = signals::MockSender::new();
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(200));
+        _ = tx.send(true);
     });
 
-    std::thread::sleep(time::Duration::from_millis(200));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
 
@@ -683,7 +691,12 @@ fn daemons_run_fail_collecting_process_data() -> Result<(), errors::Error> {
     let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
-    events_sink.expect_send().times(0);
+    events_sink.expect_send().returning(|evt| {
+        assert_eq!(
+            evt.message,
+            "error collecting process data: custom test failure"
+        );
+    });
 
     let thresholds = arguments::Thresholds::default();
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -698,20 +711,19 @@ fn daemons_run_fail_collecting_process_data() -> Result<(), errors::Error> {
     processes_explorer
         .expect_collect_process_data()
         .with(predicate::eq(2))
-        .returning(|_pid| Err(errors::Error::Message(String::from("failed"))));
+        .returning(|_pid| Err(errors::Error::Message(String::from("custom test failure"))));
 
     let signals_sender = signals::MockSender::new();
 
     thread::spawn(move || {
-        let monitor =
-            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-                .with_loop_interval(time::Duration::from_millis(50))
-                .with_cooldown_interval(time::Duration::from_mins(1));
-        monitor.run(rx);
+        std::thread::sleep(time::Duration::from_millis(100));
+        _ = tx.send(true);
     });
 
-    // wait for the monitor to a few times and then stop it.
-    std::thread::sleep(time::Duration::from_millis(100));
-    _ = tx.send(true);
+    let monitor =
+        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+            .with_loop_interval(time::Duration::from_millis(50))
+            .with_cooldown_interval(time::Duration::from_mins(1));
+    monitor.run(rx);
     Ok(())
 }
