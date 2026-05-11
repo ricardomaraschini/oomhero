@@ -1,3 +1,4 @@
+---
 name: tests (pr)
 on:
   pull_request:
@@ -9,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: check out code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: run tests
       run: make test-verbose
     - name: build test binary

@@ -23,7 +23,7 @@ spec:
         memory: "512Mi"
         cpu: "250m"
   - name: oomhero
-    image: docker.io/ricardomaraschini/oomhero:v2
+    image: ghcr.io/ricardomaraschini/oomhero:v2.0.0
     imagePullPolicy: Always
     args:
     - --memory-usage-warning=80
