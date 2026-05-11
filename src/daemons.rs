@@ -7,6 +7,7 @@ use log::warn;
 use moka::sync::Cache;
 use nix::sys::signal;
 use std::process;
+use std::sync::mpsc;
 use std::thread;
 use std::time;
 
@@ -90,11 +91,11 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
     // run starts the process monitor. This function lists all processes on the system and evaluates
     // their memory and pressure data. Signals are sent to the processes crossing the warning and
     // critical watermarks. It is important for the caller to constantly read from the sender
-    // passed in as errors are sent as messages through it. This function never returns. Also
-    // important to know that this function has just a very small sleep between interactions so
-    // when running this on a cluster you better set proper resource.limits.cpu values as that is
-    // what guides how often we run the loops.
-    pub fn run(&self) {
+    // passed in as errors are sent as messages through it. This function returns when a bool is
+    // sent through the provided `stop' channel. Also important to know that this function has just
+    // a very small sleep between interactions so when running this on a cluster you better set
+    // proper resource.limits.cpu values as that is what guides how often we run the loops.
+    pub fn run(&self, stop: mpsc::Receiver<bool>) {
         if let Err(error) = self.metrics_server.start() {
             warn!("error starting metrics server: {}", error);
         }
@@ -103,7 +104,14 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
         let mut last_pass = time::Instant::now();
         let mut passes: i64 = 0;
         loop {
+            // we sleep for the provided interval and then we check if it is time to end the loop.
+            // giving a high value of loop_interval this may take some time. XXX we should be able
+            // to implement something like go's select in here so we don't need these two stages.
             thread::sleep(self.loop_interval);
+            match stop.try_recv() {
+                Err(mpsc::TryRecvError::Empty) => {}
+                _ => return,
+            };
 
             let processes = match self.processes_discover.list() {
                 Ok(processes) => processes,

@@ -42,9 +42,12 @@ fn main() {
     let mut incoming_signals =
         Signals::new([SIGINT, SIGTERM]).expect("failed to setup signal handlers");
 
+    let (stop_tx, stop_rx) = sync::mpsc::channel::<bool>();
+
     thread::spawn(move || {
         incoming_signals.wait();
         info!("signal received, ending process.");
+        _ = stop_tx.send(true);
         process::exit(0);
     });
 
@@ -61,7 +64,7 @@ fn main() {
                 .with_loop_interval(flags.loop_interval)
                 .with_warning_signal(flags.warning_signal)
                 .with_critical_signal(flags.critical_signal);
-        monitor.run();
+        monitor.run(stop_rx);
     });
 
     let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
