@@ -1,0 +1,25 @@
+---
+name: publish (main)
+on:
+  push:
+    branches:
+    - main
+jobs:
+  publish-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+    - name: check out code
+      uses: actions/checkout@v6
+    - name: log in to the registry
+      uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: build and push
+      run: make image-build-push

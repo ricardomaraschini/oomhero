@@ -17,7 +17,6 @@ use std::process;
 use std::sync;
 use std::thread;
 
-const COMMIT_DATE: &str = env!("VERGEN_GIT_COMMIT_DATE");
 const COMMIT_HASH: &str = env!("VERGEN_GIT_SHA");
 const COMMIT_DIRTY: &str = env!("VERGEN_GIT_DIRTY");
 
@@ -89,18 +88,18 @@ fn main() {
 
 // banner prints the banner.
 fn banner() {
+    let version = env!("CARGO_PKG_VERSION");
     let hash = &COMMIT_HASH.to_string()[0..6];
-    let mut version = format!("{}-{}", COMMIT_DATE, hash);
+    let mut dirty = "";
     if COMMIT_DIRTY == "true" {
-        version = format!("{}-dirty", version);
+        dirty = "-dirty";
     }
-
     info!("                              ");
     info!("    ,.   (   .      )        .");
     info!("   ('     )  )'     ,'        ");
     info!(" .; )  '▌(( (' )    ;(,  ,' ((");
     info!(" ▛▌▛▌▛▛▌▛▌█▌▛▘▛▌(..,( . )_  _'");
     info!(" ▙▌▙▌▌▌▌▌▌▙▖▌ ▙▌              ");
-    info!("                v{}           ", version);
+    info!("                 v{}-{}{}     ", version, hash, dirty);
     info!("                              ");
 }
