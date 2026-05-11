@@ -42,11 +42,11 @@ fn main() {
     let mut incoming_signals =
         Signals::new([SIGINT, SIGTERM]).expect("failed to setup signal handlers");
 
-    let (stop_tx, stop_rx) = sync::mpsc::channel::<bool>();
+    let (stop_tx, stop_rx) = sync::mpsc::sync_channel::<bool>(0);
 
     thread::spawn(move || {
         incoming_signals.wait();
-        info!("signal received, ending process.");
+        info!("signal received, stopping daemon.");
         _ = stop_tx.send(true);
         process::exit(0);
     });

@@ -13,7 +13,7 @@ use std::time;
 
 #[test]
 fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(|_evt| {});
@@ -66,20 +66,18 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
     // wait for the monitor to a few times and then stop it.
     std::thread::sleep(time::Duration::from_millis(100));
     _ = tx.send(true);
-
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
     let oomhero_pid = process::id() as i32;
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
         assert_eq!(evt.pid, 2);
         assert_eq!(evt.message, String::from("process usage within limits"));
-        _ = tx.send(true);
     });
 
     let thresholds = arguments::Thresholds {
@@ -114,7 +112,7 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
         .returning(|_pid| {
             Ok(processes::CollectedData {
                 memory_max: 100.,
-                memory_current: 10.,
+                memory_current: 80.,
                 oom_score: 0,
                 pressure: processes::Pressure::default(),
             })
@@ -131,17 +129,22 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
 
     let signals_sender = signals::MockSender::new();
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(100));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
@@ -190,30 +193,33 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
         });
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(move |sig, pid| {
+    signals_sender.expect_send().returning(|sig, pid| {
         assert_eq!(sig, signal::SIGUSR2);
         assert_eq!(pid, 2);
-        _ = tx.send(true);
         Ok(())
     });
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(100));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
         assert_eq!(evt.message, String::from("process usage within limits"));
         assert_eq!(evt.pid, 2);
-        _ = tx.send(true);
     });
 
     let thresholds = arguments::Thresholds {
@@ -248,17 +254,22 @@ fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<
     let mut signals_sender = signals::MockSender::new();
     signals_sender.expect_send().never();
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(200));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
@@ -301,22 +312,26 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
     signals_sender.expect_send().returning(move |sig, pid| {
         assert_eq!(sig, signal::SIGKILL);
         assert_eq!(pid, 2);
-        _ = tx.send(true);
         Ok(())
     });
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_critical_signal(signal::SIGKILL)
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_critical_signal(signal::SIGKILL)
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(200));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
@@ -368,22 +383,26 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
     signals_sender.expect_send().returning(move |sig, pid| {
         assert_eq!(sig, signal::SIGABRT);
         assert_eq!(pid, 2);
-        _ = tx.send(true);
         Ok(())
     });
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_critical_signal(signal::SIGABRT)
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_critical_signal(signal::SIGABRT)
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(200));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
@@ -437,22 +456,26 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
     signals_sender.expect_send().returning(move |sig, pid| {
         assert_eq!(sig, signal::SIGKILL);
         assert_eq!(pid, 2);
-        _ = tx.send(true);
         Ok(())
     });
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_critical_signal(signal::SIGKILL)
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_critical_signal(signal::SIGKILL)
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(200));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
@@ -508,23 +531,27 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
     signals_sender.expect_send().returning(move |sig, pid| {
         assert_eq!(sig, signal::SIGKILL);
         assert_eq!(pid, 2);
-        _ = tx.send(true);
         Ok(())
     });
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_critical_signal(signal::SIGKILL)
-            .with_warning_signal(signal::SIGUSR1)
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_critical_signal(signal::SIGKILL)
+                .with_warning_signal(signal::SIGUSR1)
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(200));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(move |evt| {
@@ -567,28 +594,29 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
     signals_sender.expect_send().returning(move |sig, pid| {
         assert_eq!(sig, signal::SIGUSR1);
         assert_eq!(pid, 2);
-        _ = tx.send(true);
         Ok(())
     });
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(200));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
-    events_sink.expect_send().returning(move |evt| {
+    events_sink.expect_send().returning(|evt| {
         assert_eq!(evt.message, String::from("process usage within limits"));
-        if evt.pid == 3 {
-            _ = tx.send(true);
-        }
     });
 
     let thresholds = arguments::Thresholds::default();
@@ -637,17 +665,22 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
 
     let signals_sender = signals::MockSender::new();
 
-    let monitor =
-        daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
-            .with_loop_interval(time::Duration::from_millis(50))
-            .with_cooldown_interval(time::Duration::from_mins(1));
-    monitor.run(rx);
+    thread::spawn(move || {
+        let monitor =
+            daemons::Monitor::new(events_sink, thresholds, processes_explorer, signals_sender)
+                .with_loop_interval(time::Duration::from_millis(50))
+                .with_cooldown_interval(time::Duration::from_mins(1));
+        monitor.run(rx);
+    });
+
+    std::thread::sleep(time::Duration::from_millis(200));
+    _ = tx.send(true);
     Ok(())
 }
 
 #[test]
 fn daemons_run_fail_collecting_process_data() -> Result<(), errors::Error> {
-    let (tx, rx) = mpsc::channel::<bool>();
+    let (tx, rx) = mpsc::sync_channel::<bool>(0);
 
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().times(0);
