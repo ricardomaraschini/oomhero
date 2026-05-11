@@ -3,6 +3,7 @@ use super::events;
 use super::metrics;
 use super::processes;
 use super::signals;
+use log::info;
 use log::warn;
 use moka::sync::Cache;
 use nix::sys::signal;
@@ -110,7 +111,10 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
             thread::sleep(self.loop_interval);
             match stop.try_recv() {
                 Err(mpsc::TryRecvError::Empty) => {}
-                _ => return,
+                _ => {
+                    info!("signal received, daemon stopped.");
+                    return;
+                }
             };
 
             let processes = match self.processes_discover.list() {
