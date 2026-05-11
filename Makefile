@@ -19,6 +19,11 @@ image-push:
 	docker push $(IMAGE):latest
 	docker push $(IMAGE):$(VERSION)
 
+.PHONY: image-sign
+image-sign:
+	cosign sign --yes $(IMAGE):latest
+	cosign sign --yes $(IMAGE):$(VERSION)
+
 .PHONY: image-build-push
 image-build-push: image-build image-push
 
