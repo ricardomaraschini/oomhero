@@ -18,7 +18,7 @@ jobs:
     - name: install cosign
       uses: sigstore/cosign-installer@v4.1.0
     - name: log in to the registry
-      uses: docker/login-action@65b78e6e13532edd9afa3aa52ac7964289d1a9c1
+      uses: docker/login-action@9f4a8ea54ed9055d5f86c993e1f2ffa674f98344
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
