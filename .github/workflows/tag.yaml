@@ -23,8 +23,8 @@ jobs:
         tag_version="${{ steps.get_tag.outputs.tag }}"
         if [ "$cargo_version" != "$tag_version" ] ; then 
           echo "cargo version different than tag version"
-          echo "cargo version: '$cargo_version"
-          echo "tag   version: '$tag_version"
+          echo "cargo version: '$cargo_version'"
+          echo "tag   version: '$tag_version'"
           exit 1
         fi
     - name: install cosign
