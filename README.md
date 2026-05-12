@@ -100,6 +100,11 @@ cmdline) is not seen for 1 minute, its metrics will be removed.
 
 ### Using Pre-built Container
 
+> [!NOTE]
+> On https://github.com/ricardomaraschini/oomhero/pkgs/container/oomhero
+> you can find what is the last stable release of the container image. The
+> example below uses `latest` but that should not be used.
+
 ```yaml
 apiVersion: v1
 kind: Pod
@@ -115,7 +120,7 @@ spec:
         memory: "512Mi"
         cpu: "500m"
   - name: oomhero
-    image: ghcr.io/ricardomaraschini/oomhero:v2.0.0
+    image: ghcr.io/ricardomaraschini/oomhero:latest
     args:
       - --memory-usage-warning=75
       - --memory-usage-critical=90
