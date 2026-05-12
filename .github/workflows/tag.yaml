@@ -1,0 +1,39 @@
+name: tag
+on:
+  push:
+    tags:
+    - 'v*'
+jobs:
+  publish-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+    - name: check out code
+      uses: actions/checkout@v6
+    - name: extract current tag
+      id: get_tag
+      run: echo "tag=$(echo $GITHUB_REF | cut -d / -f 3)" >> $GITHUB_OUTPUT
+    - name: check tag cargo consistency
+      run: |-
+        cargo_version="v$(cargo pkgid | cut -d# -f2)"
+        tag_version="${{ steps.get_tag.outputs.tag }}"
+        if [ "$cargo_version" != "$tag_version" ] ; then 
+          echo "cargo version different than tag version"
+          echo "cargo version: '$cargo_version"
+          echo "tag   version: '$tag_version"
+          exit 1
+        fi
+    - name: install cosign
+      uses: sigstore/cosign-installer@v4.1.2
+    - name: log in to the registry
+      uses: docker/login-action@9f4a8ea54ed9055d5f86c993e1f2ffa674f98344
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    - name: image build push sign
+      run: make image-build-push-sign TAG=${{ steps.get_tag.outputs.tag }}

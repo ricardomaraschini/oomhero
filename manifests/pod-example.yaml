@@ -23,7 +23,7 @@ spec:
         memory: "512Mi"
         cpu: "250m"
   - name: oomhero
-    image: ghcr.io/ricardomaraschini/oomhero:v2.0.0
+    image: ghcr.io/ricardomaraschini/oomhero:latest
     imagePullPolicy: Always
     args:
     - --memory-usage-warning=80
