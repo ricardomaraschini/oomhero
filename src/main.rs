@@ -47,43 +47,46 @@ fn main() {
         incoming_signals.wait();
         info!("signal received, stopping daemon.");
         _ = stop_tx.send(true);
-        process::exit(0);
     });
 
     let (tx, rx) = sync::mpsc::channel::<events::Event>();
 
+    start_event_logger(rx);
+
+    let tx = events::Transmitter::new(tx);
+    let syscgroups = system::SystemCGroups::default();
+    let processes_explorer = processes::ProcFsReader::new(syscgroups);
+    let signal_sender = signals::SignalSender::default();
+    let monitor = daemons::Monitor::new(tx, flags.thresholds, processes_explorer, signal_sender)
+        .with_cooldown_interval(flags.cooldown_interval)
+        .with_loop_interval(flags.loop_interval)
+        .with_warning_signal(flags.warning_signal)
+        .with_critical_signal(flags.critical_signal);
+    monitor.run(stop_rx);
+}
+
+// start_event_logger spawns a new thread that keeps reading events from the provided channel
+// until the process exist. This function just spawns the thread and immediatly returns.
+fn start_event_logger(rx: sync::mpsc::Receiver<events::Event>) {
     thread::spawn(move || {
-        let tx = events::Transmitter::new(tx);
-        let syscgroups = system::SystemCGroups::default();
-        let processes_explorer = processes::ProcFsReader::new(syscgroups);
-        let signal_sender = signals::SignalSender::default();
-        let monitor =
-            daemons::Monitor::new(tx, flags.thresholds, processes_explorer, signal_sender)
-                .with_cooldown_interval(flags.cooldown_interval)
-                .with_loop_interval(flags.loop_interval)
-                .with_warning_signal(flags.warning_signal)
-                .with_critical_signal(flags.critical_signal);
-        monitor.run(stop_rx);
-    });
+        let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
+        for event in rx {
+            trace!("{:?}", &event);
+            if let events::Priority::High = event.priority {
+                last_messages.insert(event.pid, event.clone());
+                warn!("{}", event);
+                continue;
+            }
+            if let Some(previous_event) = last_messages.get(&event.pid)
+                && !event.deviates_significantly(&previous_event)
+            {
+                continue;
+            }
 
-    let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
-    for event in rx {
-        trace!("{:?}", &event);
-        if let events::Priority::High = event.priority {
             last_messages.insert(event.pid, event.clone());
-            warn!("{}", event);
-            continue;
+            info!("{}", event);
         }
-
-        if let Some(previous_event) = last_messages.get(&event.pid)
-            && !event.deviates_significantly(&previous_event)
-        {
-            continue;
-        }
-
-        last_messages.insert(event.pid, event.clone());
-        info!("{}", event);
-    }
+    });
 }
 
 // banner prints the banner.
