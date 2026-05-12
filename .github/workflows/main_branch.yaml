@@ -1,5 +1,5 @@
 ---
-name: publish (main)
+name: main_branch
 on:
   push:
     branches:
@@ -23,7 +23,7 @@ jobs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    - name: build image and push
+    - name: image build push
       run: make image-build-push
-    - name: sign image
+    - name: image sign
       run: make image-sign
