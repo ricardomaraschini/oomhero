@@ -1,9 +1,9 @@
+use podman_api::Podman;
 use podman_api::models::LinuxCpu;
 use podman_api::models::LinuxMemory;
 use podman_api::models::LinuxResources;
 use podman_api::models::PortMapping;
 use podman_api::opts;
-use podman_api::Podman;
 use std::env;
 
 // WORKLOAD_IMAGE is the image that simulates an actual workload on a cluster. It is the
