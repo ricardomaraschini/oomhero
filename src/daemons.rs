@@ -176,7 +176,7 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
 
             let per_second = passes / since_last_pass.as_secs() as i64;
             self.sink.send(
-                events::Event::low_prio().with_message(format!("scans per second: {per_second}")),
+                events::Event::high_prio().with_message(format!("scans per second: {per_second}")),
             );
 
             last_pass = time::Instant::now();
