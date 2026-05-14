@@ -1,6 +1,9 @@
-use podman_api::Podman;
+use podman_api::models::LinuxCpu;
+use podman_api::models::LinuxMemory;
+use podman_api::models::LinuxResources;
 use podman_api::models::PortMapping;
 use podman_api::opts;
+use podman_api::Podman;
 use std::env;
 
 // WORKLOAD_IMAGE is the image that simulates an actual workload on a cluster. It is the
@@ -13,6 +16,68 @@ const WORKLOAD_IMAGE: &str = "test-workload";
 // in the podman storage prior to run the tests. Before running the test make sure you
 // built the image.
 const OOMHERO_IMAGE: &str = "ghcr.io/ricardomaraschini/oomhero";
+
+// WORKLOAD_CONTAINER_RESOURCE_LIMITS limits the amount of resources that the test workload
+// container can use.
+const WORKLOAD_CONTAINER_RESOURCE_LIMITS: LinuxResources = LinuxResources {
+    cpu: Some(LinuxCpu {
+        period: Some(100_000),
+        quota: Some(10_000),
+        cpus: None,
+        mems: None,
+        realtime_period: None,
+        realtime_runtime: None,
+        shares: None,
+    }),
+    memory: Some(LinuxMemory {
+        limit: Some(67_108_864),
+        disable_oom_killer: None,
+        kernel: None,
+        kernel_tcp: None,
+        reservation: None,
+        swap: None,
+        swappiness: None,
+        use_hierarchy: None,
+    }),
+    block_io: None,
+    devices: None,
+    hugepage_limits: None,
+    network: None,
+    pids: None,
+    rdma: None,
+    unified: None,
+};
+
+// OOMHERO_CONTAINER_RESOURCE_LIMITS limits the amount of resources our test oomhero container can
+// use during the test execution.
+const OOMHERO_CONTAINER_RESOURCE_LIMITS: LinuxResources = LinuxResources {
+    cpu: Some(LinuxCpu {
+        period: Some(1_000_000),
+        quota: Some(100_000),
+        cpus: None,
+        mems: None,
+        realtime_period: None,
+        realtime_runtime: None,
+        shares: None,
+    }),
+    memory: Some(LinuxMemory {
+        limit: Some(33_554_432),
+        disable_oom_killer: None,
+        kernel: None,
+        kernel_tcp: None,
+        reservation: None,
+        swap: None,
+        swappiness: None,
+        use_hierarchy: None,
+    }),
+    block_io: None,
+    devices: None,
+    hugepage_limits: None,
+    network: None,
+    pids: None,
+    rdma: None,
+    unified: None,
+};
 
 // podman_client returns a client pointing to the podman socket. The socket is expected to be under
 // $XDG_RUNTIME_DIR/podman/podman.sock.
@@ -28,17 +93,29 @@ fn podman_client() -> Podman {
 async fn create_test_pod(name: String, arguments: &Vec<&str>) {
     let client = podman_client();
 
-    let workload_port_mappings = vec![PortMapping {
-        container_port: Some(9999),
-        host_port: Some(9999),
-        host_ip: None,
-        protocol: None,
-        range: None,
-    }];
+    // port_mappings is a list of port mappings we expose in the pod. the port 9000 is the port
+    // oomhero exposes metrics while the port 9999 is the port where the workload pod exposes
+    // endpoints for us to change its behavior (e.g. increase cpu usage).
+    let port_mappings = vec![
+        PortMapping {
+            container_port: Some(9999),
+            host_port: Some(9999),
+            host_ip: None,
+            protocol: None,
+            range: None,
+        },
+        PortMapping {
+            container_port: Some(9000),
+            host_port: Some(9000),
+            host_ip: None,
+            protocol: None,
+            range: None,
+        },
+    ];
 
     let pod_create_opts = &opts::PodCreateOpts::builder()
         .name(name.clone())
-        .portmappings(workload_port_mappings)
+        .portmappings(port_mappings)
         .shared_namespaces(vec!["ipc", "net", "uts", "pid"])
         .infra_image("registry.k8s.io/pause:latest")
         .build();
@@ -46,13 +123,14 @@ async fn create_test_pod(name: String, arguments: &Vec<&str>) {
     let workload_container_create_opts = &opts::ContainerCreateOpts::builder()
         .name("workload")
         .pod(name.clone())
+        .resource_limits(WORKLOAD_CONTAINER_RESOURCE_LIMITS)
         .image(WORKLOAD_IMAGE)
         .build();
 
     let oomhero_container_create_opts = &opts::ContainerCreateOpts::builder()
         .name("oomhero")
         .pod(name.clone())
-        .cpu_quota(1)
+        .resource_limits(OOMHERO_CONTAINER_RESOURCE_LIMITS)
         .add_capabilities(vec!["SYS_PTRACE"])
         .image(OOMHERO_IMAGE)
         .command(arguments)
@@ -99,8 +177,10 @@ async fn end_2_end() {
             "--memory-usage-critical",
             "96",
             "--loop-interval",
-            "1s",
+            "100ms",
         ],
     )
     .await;
+
+    // attempt_test_pod_removal(String::from("memory_pressure")).await;
 }
