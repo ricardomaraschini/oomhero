@@ -27,13 +27,11 @@ jobs:
           echo "tag   version: '$tag_version'"
           exit 1
         fi
-    - name: install cosign
-      uses: sigstore/cosign-installer@v4.1.2
     - name: log in to the registry
       uses: docker/login-action@9f4a8ea54ed9055d5f86c993e1f2ffa674f98344
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
-    - name: image build push sign
-      run: make image-build-push-sign TAG=${{ steps.get_tag.outputs.tag }}
+    - name: image build push
+      run: make image-build-push TAG=${{ steps.get_tag.outputs.tag }}
