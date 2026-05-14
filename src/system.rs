@@ -35,13 +35,6 @@ pub struct SystemCGroups {
 }
 
 impl SystemCGroups {
-    // default returns a default SystemCGroups with the procfs root set to /proc.
-    pub fn default() -> Self {
-        SystemCGroups {
-            procfs_root: String::from("/proc"),
-        }
-    }
-
     // with_procfs_root allows for customization of the procfs root path.
     pub fn with_procfs_root(mut self, root: String) -> Self {
         self.procfs_root = root;
@@ -60,6 +53,15 @@ impl SystemCGroups {
                 self.procfs_root, pid, resource
             ))),
         })
+    }
+}
+
+impl std::default::Default for SystemCGroups {
+    // default returns a default SystemCGroups with the procfs root set to /proc.
+    fn default() -> Self {
+        SystemCGroups {
+            procfs_root: String::from("/proc"),
+        }
     }
 }
 
@@ -139,6 +141,6 @@ impl Provider for SystemCGroups {
     // path_to_procfs returns the path from where read the procfs. This exists mostly so we can
     // mock this whole struct as this isn't expected to differ in any way.
     fn path_to_procfs(&self) -> path::PathBuf {
-        path::PathBuf::from(format!("{}", self.procfs_root))
+        path::PathBuf::from(self.procfs_root.to_string())
     }
 }

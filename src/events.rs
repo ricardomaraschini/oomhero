@@ -169,7 +169,7 @@ impl Transmitter {
 impl fmt::Display for Event {
     fn fmt(&self, fp: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(fp, "pid:{} ", self.pid)?;
-        if self.cmdline != "" {
+        if !self.cmdline.is_empty() {
             write!(fp, "cmdline:{} ", self.cmdline)?;
         }
         if self.memory_usage > 0. {
