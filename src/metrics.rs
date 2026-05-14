@@ -75,8 +75,8 @@ impl Server {
     // report_collected_data makes the provided collected data available through prometheus
     // metrics. we export all the collected data.
     pub fn report_collected_data(&self, p: &processes::Process, d: &processes::CollectedData) {
-        self.report_usage(&p, d);
-        self.report_oom_score(&p, d);
-        self.report_pressure(&p, d);
+        self.report_usage(p, d);
+        self.report_oom_score(p, d);
+        self.report_pressure(p, d);
     }
 }

@@ -18,6 +18,10 @@ image-build:
 image-push:
 	podman push $(IMAGEFULL)
 
+.PHONY: lint
+lint:
+	cargo clippy -- -D warnings
+
 .PHONY: image-sign
 WITHSHA=$(shell podman inspect -f '{{index .RepoDigests 0}}' $(IMAGEFULL))
 image-sign:
