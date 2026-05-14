@@ -22,16 +22,8 @@ image-push:
 lint:
 	cargo clippy -- -D warnings
 
-.PHONY: image-sign
-WITHSHA=$(shell podman inspect -f '{{index .RepoDigests 0}}' $(IMAGEFULL))
-image-sign:
-	cosign sign --yes $(WITHSHA)
-
 .PHONY: image-build-push
 image-build-push: image-build image-push
-
-.PHONY: image-build-push-sign
-image-build-push-sign: image-build image-push image-sign
 
 .PHONY: test
 test: test-workload-image-build image-build
