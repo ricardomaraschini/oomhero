@@ -1,0 +1,8 @@
+FROM docker.io/rust:slim-trixie AS builder
+WORKDIR /workload
+COPY . .
+RUN cargo build --release
+
+FROM docker.io/debian:trixie-slim
+COPY --from=builder /workload/target/release/workload /usr/local/bin/workload
+ENTRYPOINT [ "workload" ]

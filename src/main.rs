@@ -1,8 +1,8 @@
 use clap::Parser;
+use log::error;
 use log::info;
 use log::trace;
 use log::warn;
-use log::error;
 use moka::sync::Cache;
 use oomhero::arguments;
 use oomhero::daemons;
@@ -94,7 +94,6 @@ async fn start_event_logger(rx: sync::mpsc::Receiver<events::Event>) {
         info!("{}", event);
     }
 }
-
 
 // full_version returns the value of the cargo package version with a suffix of the commit hash
 // used to build the binary. If uncommited changes are found then a -dirty string is added to

@@ -12,14 +12,14 @@ release:
 
 .PHONY: image-build
 image-build:
-	docker build -t $(IMAGEFULL) -f Containerfile .
+	podman build -t $(IMAGEFULL) .
 
 .PHONY: image-push
 image-push:
-	docker push $(IMAGEFULL)
+	podman push $(IMAGEFULL)
 
 .PHONY: image-sign
-WITHSHA=$(shell docker inspect -f '{{index .RepoDigests 0}}' $(IMAGEFULL))
+WITHSHA=$(shell podman inspect -f '{{index .RepoDigests 0}}' $(IMAGEFULL))
 image-sign:
 	cosign sign --yes $(WITHSHA)
 
@@ -30,9 +30,13 @@ image-build-push: image-build image-push
 image-build-push-sign: image-build image-push image-sign
 
 .PHONY: test
-test:
+test: test-workload-image-build image-build
 	timeout 5m cargo test
 
 .PHONY: test-verbose
-test-verbose:
+test-verbose: test-workload-image-build image-build
 	timeout 5m cargo test -- --nocapture
+
+.PHONY: test-workload-image-build
+test-workload-image-build:
+	podman build -t test-workload tests/workload
