@@ -16,12 +16,12 @@ use signal_hook::iterator::Signals;
 use std::env;
 use std::process;
 use std::sync;
+use std::thread;
 
 const COMMIT_HASH: &str = env!("VERGEN_GIT_SHA");
 const COMMIT_DIRTY: &str = env!("VERGEN_GIT_DIRTY");
 
-#[tokio::main]
-async fn main() {
+fn main() {
     let environment = env_logger::Env::new().default_filter_or("info");
     env_logger::Builder::from_env(environment).init();
 
@@ -40,10 +40,10 @@ async fn main() {
     info!("config: {}", &flags);
 
     let (stop_transmitter, stop_receiver) = sync::mpsc::sync_channel::<bool>(0);
-    tokio::spawn(signal_handler(stop_transmitter));
+    thread::spawn(move || signal_handler(stop_transmitter));
 
     let (evt_transmitter, evt_receiver) = sync::mpsc::channel::<events::Event>();
-    tokio::spawn(start_event_logger(evt_receiver));
+    thread::spawn(move || start_event_logger(evt_receiver));
 
     let tx = events::Transmitter::new(evt_transmitter);
     let syscgroups = system::SystemCGroups::default();
@@ -60,7 +60,7 @@ async fn main() {
 // signal_handler installs a signal handler for interrupt and terminate. Once one of these signals
 // is received a `bool` message is sent through the provided notifier and then the async finishes.
 // if this function fails to create the channel then a message is logged, nothing more is done.
-async fn signal_handler(notifier: sync::mpsc::SyncSender<bool>) {
+fn signal_handler(notifier: sync::mpsc::SyncSender<bool>) {
     let mut incoming_signals = match Signals::new([SIGINT, SIGTERM]) {
         Err(error) => {
             error!("unable to hook signal handler: {:?}", error);
@@ -75,7 +75,7 @@ async fn signal_handler(notifier: sync::mpsc::SyncSender<bool>) {
 
 // start_event_logger spawns a new thread that keeps reading events from the provided channel
 // until the process exist. This function just spawns the thread and immediatly returns.
-async fn start_event_logger(rx: sync::mpsc::Receiver<events::Event>) {
+fn start_event_logger(rx: sync::mpsc::Receiver<events::Event>) {
     let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
     for event in rx {
         trace!("{:?}", &event);
