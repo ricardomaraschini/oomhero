@@ -1,6 +1,8 @@
+use axum::Json;
 use axum::Router;
 use axum::extract::State;
 use axum::routing::get;
+use serde::Serialize;
 use signal_hook::consts::SIGUSR1;
 use signal_hook::consts::SIGUSR2;
 use signal_hook::iterator::Signals;
@@ -16,6 +18,14 @@ struct AppState {
     cpu_next: Arc<Mutex<bool>>,
     mem_tx: mpsc::SyncSender<bool>,
     mem_next: Arc<Mutex<bool>>,
+    signals_received: Arc<Mutex<i32>>,
+}
+
+#[derive(Serialize)]
+struct Stats {
+    cpu_next: bool,
+    mem_next: bool,
+    signals_received: i32,
 }
 
 #[tokio::main]
@@ -31,6 +41,7 @@ async fn main() {
         cpu_next: Arc::new(Mutex::new(true)),
         mem_tx: mem_tx.clone(),
         mem_next: Arc::new(Mutex::new(true)),
+        signals_received: Arc::new(Mutex::new(0)),
     };
 
     let state_copy = state.clone();
@@ -39,6 +50,7 @@ async fn main() {
     let router = Router::new()
         .route("/cpu", get(cpu_handler))
         .route("/mem", get(mem_handler))
+        .route("/stats", get(stats_handler))
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:9999")
@@ -65,7 +77,19 @@ fn signal_handler(state: AppState) {
 
         state.cpu_tx.send(false).expect("failed to stop cpu usage");
         *state.cpu_next.lock().unwrap() = true;
+
+        *state.signals_received.lock().unwrap() += 1;
     }
+}
+
+// stats_handler returns the current stats for the app. Informs what is the next state of cpu and
+// memory switches (if pressed) and the amount of signals received.
+async fn stats_handler(State(state): State<AppState>) -> Json<Stats> {
+    Json(Stats {
+        cpu_next: *state.cpu_next.lock().unwrap(),
+        mem_next: *state.mem_next.lock().unwrap(),
+        signals_received: *state.signals_received.lock().unwrap(),
+    })
 }
 
 // cpu_handler flips the cpu consumption on and off. One call turns it on, the next turns it off.
@@ -87,7 +111,7 @@ async fn mem_handler(State(state): State<AppState>) -> &'static str {
 }
 
 // mem_usage is a loop that may or may not increase the memory consumption in the workload process.
-// If a true value is read from the Receiver then we start to consume 1MB of memory per second. If
+// If a true value is read from the Receiver then we start to consume 2MB of memory per second. If
 // a false is read instead then we truncate the used memory to 0.
 fn mem_usage(switch: mpsc::Receiver<bool>) {
     let mut previous: bool = false;
@@ -100,7 +124,7 @@ fn mem_usage(switch: mpsc::Receiver<bool>) {
         };
 
         match consume {
-            true => ballast.push("x".repeat(1_024 * 1_024)),
+            true => ballast.push("x".repeat(2 * 1_024 * 1_024)),
             false => ballast.truncate(0),
         }
 

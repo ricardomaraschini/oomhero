@@ -4,7 +4,9 @@ use podman_api::models::LinuxMemory;
 use podman_api::models::LinuxResources;
 use podman_api::models::PortMapping;
 use podman_api::opts;
+use serde::Deserialize;
 use std::env;
+use std::time::Duration;
 
 // WORKLOAD_IMAGE is the image that simulates an actual workload on a cluster. It is the
 // application that is monitored by the oomhero container, receives signals and  reacts
@@ -16,6 +18,12 @@ const WORKLOAD_IMAGE: &str = "test-workload";
 // in the podman storage prior to run the tests. Before running the test make sure you
 // built the image.
 const OOMHERO_IMAGE: &str = "ghcr.io/ricardomaraschini/oomhero";
+
+// Stats represents the response from the /stats endpoint of the workload container.
+#[derive(Deserialize, Debug)]
+struct Stats {
+    signals_received: i32,
+}
 
 // WORKLOAD_CONTAINER_RESOURCE_LIMITS limits the amount of resources that the test workload
 // container can use.
@@ -165,24 +173,87 @@ async fn attempt_test_pod_removal(name: String) {
     _ = pod.remove().await;
 }
 
+// end_2_end test is very simple and needs to be improved. So far: it spawns a pod with both
+// oomhero and a test workload application (source code under tests/workload). Both containers
+// have memory and cpu restrictions. Once everything the pod is up we do a request to the
+// workload appliation (/mem) so it immediately start to eat ram up, we wait until the
+// application receives the signal. We repeat the same operation for cpu (/cpu). Nothing fancy
+// here but it gets the basic functionality tested.
 #[tokio::test]
 async fn end_2_end() {
-    attempt_test_pod_removal(String::from("memory_pressure")).await;
+    // just in case we had a pod running from a failed previous attempt.
+    attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
 
+    // create the pod with the two containers (three if we count the pause container). oomhero
+    // is configured to warning on 80% and 90% for both memory usage and cpu pressure. Once
+    // this call is back we know that the container is up and running;
+    println!("creating test pod");
     create_test_pod(
-        String::from("memory_pressure"),
+        String::from("oomhero_test_pod"),
         &vec![
-            "--memory-usage-warning",
-            "80",
-            "--memory-usage-critical",
-            "90",
-            "--cpu-pressure-warning",
-            "80",
-            "--cpu-pressure-critical",
-            "90",
+            "--memory-usage-warning=80",
+            "--memory-usage-critical=90",
+            "--cpu-pressure-warning=80",
+            "--cpu-pressure-critical=90",
         ],
     )
     .await;
 
-    // attempt_test_pod_removal(String::from("memory_pressure")).await;
+    // here we issue a request to the workload application asking for it to start to eat cpu.
+    // as the container is restricted to 10% of one CPU the pressure will start to grow, we
+    // just need to monitor if it will receive the signal.
+    println!("informing the test workload to start eating cpu");
+    let client = reqwest::Client::new();
+    client
+        .get("http://localhost:9999/cpu")
+        .send()
+        .await
+        .expect("failed to send /cpu request");
+
+    // wait for the signal to be sent by oomhero to the workload application.
+    println!("waiting for the test workload to receive the first signal (cpu pressure)");
+    wait_for_signals(&client, 1).await;
+    println!("test workload informs that the cpu signal has been received");
+
+    // we just wait a little bit before starting up the next test, memory consumption.
+    tokio::time::sleep(Duration::from_secs(1)).await;
+
+    // we now rinse and repeat but this time assessing memory consumption.
+    println!("informing the test workload to start eating memory");
+    client
+        .get("http://localhost:9999/mem")
+        .send()
+        .await
+        .expect("failed to send /mem request");
+
+    println!("waiting for the test workload to receive the second signal (mem usage)");
+    wait_for_signals(&client, 2).await;
+    println!("test workload informs that the memory signal has been received");
+
+    attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
+}
+
+// wait_for_signals polls the /stats endpoint until the expected number of signals have been
+// received.
+async fn wait_for_signals(client: &reqwest::Client, nr: i32) {
+    for _ in 0..120 {
+        let stats: Stats = client
+            .get("http://localhost:9999/stats")
+            .send()
+            .await
+            .expect("failed to get stats")
+            .json()
+            .await
+            .expect("failed to parse stats");
+
+        if stats.signals_received == nr {
+            println!("received signal nr {} as expected", nr);
+            return;
+        }
+
+        println!("sig received {}, expected {}", stats.signals_received, nr);
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    panic!("timeout waiting for signal nr {}", nr);
 }
