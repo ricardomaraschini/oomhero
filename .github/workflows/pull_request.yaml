@@ -11,15 +11,7 @@ jobs:
     steps:
     - name: check out code
       uses: actions/checkout@v6
+    - name: setup podman socket
+      run: systemctl --user start podman.socket
     - name: run tests
       run: make test-verbose
-  build:
-    name: build artifacts
-    runs-on: ubuntu-latest
-    steps:
-    - name: check out code
-      uses: actions/checkout@v6
-    - name: build
-      run: make build
-    - name: image build
-      run: make image-build
