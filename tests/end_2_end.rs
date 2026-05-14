@@ -21,8 +21,8 @@ const OOMHERO_IMAGE: &str = "ghcr.io/ricardomaraschini/oomhero";
 // container can use.
 const WORKLOAD_CONTAINER_RESOURCE_LIMITS: LinuxResources = LinuxResources {
     cpu: Some(LinuxCpu {
-        period: Some(100_000),
-        quota: Some(10_000),
+        period: Some(1_000_000),
+        quota: Some(100_000),
         cpus: None,
         mems: None,
         realtime_period: None,
@@ -173,11 +173,13 @@ async fn end_2_end() {
         String::from("memory_pressure"),
         &vec![
             "--memory-usage-warning",
-            "90",
+            "80",
             "--memory-usage-critical",
-            "96",
-            "--loop-interval",
-            "100ms",
+            "90",
+            "--cpu-pressure-warning",
+            "80",
+            "--cpu-pressure-critical",
+            "90",
         ],
     )
     .await;
