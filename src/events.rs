@@ -182,7 +182,7 @@ impl fmt::Display for Event {
             write!(fp, "io_pressure:{:.2}% ", self.io_pressure)?;
         }
         if self.cpu_pressure > 0. {
-            write!(fp, "cpu_pressure:{:.2}% ", self.io_pressure)?;
+            write!(fp, "cpu_pressure:{:.2}% ", self.cpu_pressure)?;
         }
         write!(fp, "message: {}", self.message)?;
         Ok(())
