@@ -14,7 +14,7 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
-use users::get_current_uid;
+use uzers::get_current_uid;
 
 // WORKLOAD_IMAGE is the image that simulates an actual workload on a cluster. It is the
 // application that is monitored by the oomhero container, receives signals and  reacts
