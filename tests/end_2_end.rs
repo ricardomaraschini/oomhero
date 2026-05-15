@@ -1,3 +1,5 @@
+use futures_util::StreamExt;
+use log::info;
 use nix::sys::stat;
 use podman_api::models::LinuxBlockIo;
 use podman_api::models::LinuxCpu;
@@ -265,6 +267,23 @@ async fn create_test_pod(name: String, arguments: &Vec<&str>) {
     pod.start().await.expect("failed to start pod");
 }
 
+// follow_container_logs dumps and then follows the whole logs from the provided container. This
+// function only returns when the container dies.
+async fn follow_container_logs(name: &str) {
+    let container = podman_client().containers().get(name);
+    let options = opts::ContainerLogsOpts::builder()
+        .stdout(true)
+        .stderr(true)
+        .follow(true)
+        .build();
+
+    let mut log_stream = container.logs(&options);
+    while let Some(chunk) = log_stream.next().await {
+        let data = chunk.unwrap();
+        print!("{}", String::from_utf8_lossy(&data));
+    }
+}
+
 // attempt_test_pod_removal attempst to delete the test pod pointed by the provided name. Failures
 // are ignored.
 async fn attempt_test_pod_removal(name: String) {
@@ -281,20 +300,23 @@ async fn attempt_test_pod_removal(name: String) {
 // here but it gets the basic functionality tested.
 #[tokio::test]
 async fn end_2_end() {
+    let environment = env_logger::Env::new().default_filter_or("info");
+    env_logger::Builder::from_env(environment).init();
+
     // just in case we had a pod running from a failed previous attempt.
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
 
     if !io_controller_is_enabled().await {
-        println!("*****************************************************************");
-        println!("* IO TESTS WILL BE SKIPPED BECAUSE THE CONTROLLER ISN'T ENABLED *");
-        println!("* YOU MAY WANT TO RUN THIS TEST AS ROOT OR JUST DELEGATE TO CI  *");
-        println!("*****************************************************************");
+        info!("*****************************************************************");
+        info!("* IO TESTS WILL BE SKIPPED BECAUSE THE CONTROLLER ISN'T ENABLED *");
+        info!("* YOU MAY WANT TO RUN THIS TEST AS ROOT OR JUST DELEGATE TO CI  *");
+        info!("*****************************************************************");
     }
 
     // create the pod with the two containers (three if we count the pause container). oomhero
     // is configured to warning on 80% and 90% for both memory usage and cpu pressure. Once
     // this call is back we know that the container is up and running;
-    println!("creating test pod");
+    info!("creating test pod");
     create_test_pod(
         String::from("oomhero_test_pod"),
         &vec![
@@ -308,10 +330,14 @@ async fn end_2_end() {
     )
     .await;
 
+    // we follow container logs but we don't bother to join the task.
+    _ = tokio::spawn(follow_container_logs("oomhero"));
+    _ = tokio::spawn(follow_container_logs("workload"));
+
     // here we issue a request to the workload application asking for it to start to eat cpu.
     // as the container is restricted to 10% of one CPU the pressure will start to grow, we
     // just need to monitor if it will receive the signal.
-    println!("informing the test workload to start eating cpu");
+    info!("informing the test workload to start eating cpu");
     let client = reqwest::Client::new();
     client
         .get("http://localhost:9999/cpu")
@@ -320,24 +346,24 @@ async fn end_2_end() {
         .expect("failed to send /cpu request");
 
     // wait for the signal to be sent by oomhero to the workload application.
-    println!("waiting for the test workload to receive the first signal (cpu pressure)");
+    info!("waiting for the test workload to receive the first signal (cpu pressure)");
     wait_for_signals(&client, 1).await;
-    println!("test workload informs that the cpu signal has been received");
+    info!("test workload informs that the cpu signal has been received");
 
     // we just wait a little bit before starting up the next test, memory consumption.
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // we now rinse and repeat but this time assessing memory consumption.
-    println!("informing the test workload to start eating memory");
+    info!("informing the test workload to start eating memory");
     client
         .get("http://localhost:9999/mem")
         .send()
         .await
         .expect("failed to send /mem request");
 
-    println!("waiting for the test workload to receive the second signal (mem usage)");
+    info!("waiting for the test workload to receive the second signal (mem usage)");
     wait_for_signals(&client, 2).await;
-    println!("test workload informs that the memory signal has been received");
+    info!("test workload informs that the memory signal has been received");
 
     if !io_controller_is_enabled().await {
         attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
@@ -348,16 +374,16 @@ async fn end_2_end() {
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // we now rinse and repeat but this time assessing memory consumption.
-    println!("informing the test workload to start doing io");
+    info!("informing the test workload to start doing io");
     client
         .get("http://localhost:9999/io")
         .send()
         .await
         .expect("failed to send /io request");
 
-    println!("waiting for the test workload to receive the third signal (io usage)");
+    info!("waiting for the test workload to receive the third signal (io usage)");
     wait_for_signals(&client, 3).await;
-    println!("test workload informs that the io signal has been received");
+    info!("test workload informs that the io signal has been received");
 
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
 }
@@ -376,11 +402,10 @@ async fn wait_for_signals(client: &reqwest::Client, nr: i32) {
             .expect("failed to parse stats");
 
         if stats.signals_received == nr {
-            println!("received signal nr {} as expected", nr);
+            info!("received signal nr {} as expected", nr);
             return;
         }
 
-        println!("sig received {}, expected {}", stats.signals_received, nr);
         tokio::time::sleep(Duration::from_secs(1)).await;
     }
 

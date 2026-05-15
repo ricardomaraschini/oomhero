@@ -1,7 +1,8 @@
-use axum::Json;
-use axum::Router;
 use axum::extract::State;
 use axum::routing::get;
+use axum::Json;
+use axum::Router;
+use log::info;
 use serde::Serialize;
 use signal_hook::consts::SIGUSR1;
 use signal_hook::consts::SIGUSR2;
@@ -9,9 +10,9 @@ use signal_hook::iterator::Signals;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
-use std::sync::mpsc;
 use std::thread;
 use std::time;
 use tempfile::tempfile;
@@ -34,6 +35,9 @@ struct Stats {
 
 #[tokio::main]
 async fn main() {
+    let environment = env_logger::Env::new().default_filter_or("info");
+    env_logger::Builder::from_env(environment).init();
+
     let (cpu_tx, cpu_rx) = mpsc::sync_channel::<bool>(1);
     thread::spawn(move || cpu_usage(cpu_rx));
 
@@ -81,7 +85,7 @@ fn signal_handler(state: AppState) {
     };
 
     for signal in incoming_signals.forever() {
-        println!("signal {:?} received", signal);
+        info!("signal {:?} received", signal);
         state.mem_tx.send(false).expect("failed to stop mem usage");
         *state.mem_next.lock().unwrap() = true;
 
@@ -102,7 +106,7 @@ async fn stats_handler(State(state): State<AppState>) -> Json<Stats> {
 
 // io_handler flips the io consumption on and off. One call turns it on, the next turns it off.
 async fn io_handler(State(state): State<AppState>) -> &'static str {
-    println!("io switch pressed");
+    info!("io switch pressed");
     let mut next = state.io_next.lock().unwrap();
     state.io_tx.send(*next).expect("failed sending message");
     *next = !*next;
@@ -111,7 +115,7 @@ async fn io_handler(State(state): State<AppState>) -> &'static str {
 
 // cpu_handler flips the cpu consumption on and off. One call turns it on, the next turns it off.
 async fn cpu_handler(State(state): State<AppState>) -> &'static str {
-    println!("cpu switch pressed");
+    info!("cpu switch pressed");
     let mut next = state.cpu_next.lock().unwrap();
     state.cpu_tx.send(*next).expect("failed sending message");
     *next = !*next;
@@ -120,7 +124,7 @@ async fn cpu_handler(State(state): State<AppState>) -> &'static str {
 
 // mem_handler flips the mem consumption on and off. One call turns it on, the next turns it off.
 async fn mem_handler(State(state): State<AppState>) -> &'static str {
-    println!("mem switch pressed");
+    info!("mem switch pressed");
     let mut next = state.mem_next.lock().unwrap();
     state.mem_tx.send(*next).expect("failed sending message");
     *next = !*next;
