@@ -11,9 +11,7 @@ jobs:
     steps:
     - name: check out code
       uses: actions/checkout@v6
-    - name: setup podman socket
-      run: systemctl --user start podman.socket
     - name: run lint
       run: make lint
     - name: run tests
-      run: make test-verbose
+      run: make test-verbose-as-root

@@ -36,3 +36,13 @@ test-verbose: test-workload-image-build image-build
 .PHONY: test-workload-image-build
 test-workload-image-build:
 	podman build -t test-workload tests/workload
+
+# the next recipe is tailored to run things as root. this should not be
+# needed locally but is paramount for running the full end to end tests.
+# the runner does not have cargo installed for the root user, this is
+# a hack. we build the  needed images and then run the tests.
+.PHONY: test-verbose-as-root
+test-verbose-as-root:
+	sudo podman build -t test-workload tests/workload
+	sudo podman build -t $(IMAGEFULL) .
+	CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER="sudo" timeout 5m cargo test -- --nocapture
