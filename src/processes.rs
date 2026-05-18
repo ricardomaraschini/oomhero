@@ -83,6 +83,48 @@ impl CollectedData {
     }
 }
 
+impl fasteval::EvalNamespace for CollectedData {
+    // lookup is the function that returns a valued based on a name. this is used when evaluating
+    // expressions provided by the user. users can enter with expressions like:
+    // memory_pressure_full_avg60 > 10 || memory_usage > 50.
+    // io_pressure_full_avg10 > 10 || memory_pressure_full_avg10 > 10
+    // i.e. this is the function that translates io_pressure_full_avg10 into a float 64.
+    fn lookup(&mut self, name: &str, _: Vec<f64>, _: &mut std::string::String) -> Option<f64> {
+        if name == "memory_usage" {
+            return Some(self.memory_usage() as f64);
+        }
+
+        // from now on we only expect data to be of type pressure. we split by underscore to better
+        // understand what the user is requesting for. e.g. memory_pressure_full_avg10.
+        let parts: Vec<&str> = name.split('_').collect();
+        if parts.len() != 4 {
+            return None;
+        }
+        let (resource, kind, severity, window) = (parts[0], parts[1], parts[2], parts[3]);
+        if kind != "pressure" {
+            return None;
+        }
+
+        let data = match resource {
+            "memory" => &self.pressure.memory,
+            "io" => &self.pressure.io,
+            "cpu" => &self.pressure.cpu,
+            _ => return None,
+        };
+        let averages = match severity {
+            "full" => &data.full,
+            "some" => &data.some,
+            _ => return None,
+        };
+        match window {
+            "avg10" => Some(averages.avg10 as f64),
+            "avg60" => Some(averages.avg60 as f64),
+            "avg300" => Some(averages.avg300 as f64),
+            _ => None,
+        }
+    }
+}
+
 // Process holds information about a specific process running on the system.
 #[derive(Debug, Default, Clone)]
 pub struct Process {

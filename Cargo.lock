@@ -487,6 +487,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fasteval"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f4cdac9e4065d7c48e30770f8665b8cef9a3a73a63a4056a33a5f395bc7cf75"
+
+[[package]]
 name = "filetime"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1446,6 +1452,7 @@ dependencies = [
  "clap",
  "duration-str",
  "env_logger",
+ "fasteval",
  "futures-util",
  "log",
  "metrics",
