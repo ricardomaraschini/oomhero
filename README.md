@@ -4,18 +4,24 @@ A lightweight Kubernetes sidecar that monitors process resource usage and
 pressure metrics, sending configurable signals to applications before resource
 exhaustion occurs.
 
+> [!IMPORTANT]
+> **Breaking Change (v2.x+):** OOMHero has moved to an expression-based threshold
+> system. The previous specific flags (e.g., `--memory-usage-warning`) have been
+> removed. You must now use the `--warning` and `--critical` flags with
+> expressions. See [Threshold Expressions](#threshold-expressions) for details.
+
 ## Overview
 
 OOMHero runs alongside your application containers in Kubernetes pods,
 continuously monitoring memory usage, memory pressure, I/O pressure, and CPU
-pressure. When processes approach configurable thresholds, OOMHero sends Unix
-signals to enable proactive remediation before the OOMKiller terminates your
-application.
+pressure. When processes cross configurable thresholds (defined as
+expressions), OOMHero sends Unix signals to enable proactive remediation before
+the OOMKiller terminates your application.
 
 ## Features
 
-- **Multi-metric monitoring**: Tracks memory usage, memory pressure (PSI), I/O
-  pressure, and CPU pressure
+- **Expression-based thresholds**: Define complex triggers using any combination of
+  memory, OOM score, and pressure metrics
 - **Signal-based notifications**: Sends customizable Unix signals (default:
   `SIGUSR1` for warning, `SIGUSR2` for critical)
 - **Cooldown periods**: Prevents signal spam with configurable intervals
@@ -27,11 +33,11 @@ application.
 OOMHero operates in pods with `shareProcessNamespace: true`, enabling it to
 monitor all processes within the pod. It continuously scans processes at
 configurable intervals, evaluating their resource usage against defined
-thresholds.
+threshold expressions.
 
-When a process exceeds a threshold:
-1. **Warning threshold**: Sends SIGUSR1 (or custom signal) to the process
-2. **Critical threshold**: Sends SIGUSR2 (or custom signal) to the process
+When a process matches an expression:
+1. **Warning expression**: Sends SIGUSR1 (or custom signal) to the process
+2. **Critical expression**: Sends SIGUSR2 (or custom signal) to the process
 
 Applications implement signal handlers to take corrective action such as:
 - Flushing caches to disk
@@ -40,30 +46,33 @@ Applications implement signal handlers to take corrective action such as:
 - Dumping diagnostics for post-mortem analysis
 - Initiating controlled restarts
 
-### Pressure Stall Information (PSI)
+### Threshold Expressions
 
-OOMHero leverages Linux PSI metrics to detect resource contention:
-- **Memory pressure**: Indicates when processes are waiting for memory
-- **I/O pressure**: Detects when processes are blocked on I/O operations
-- **CPU pressure**: Identifies when processes cannot get CPU time
+OOMHero uses the [fasteval](https://github.com/likebike/fasteval) library to
+evaluate threshold expressions. You can combine various metrics using standard
+operators:
 
-These metrics provide early warning of resource saturation before hard limits
-are hit.
+- **Logical**: `&&` (and), `||` (or), `!` (not)
+- **Comparison**: `>`, `<`, `>=`, `<=`, `==`, `!=`
+- **Algebraic**: `+`, `-`, `*`, `/`, `%` (modulo), `^` (power)
 
-#### PSI Configuration
+#### Available Variables
 
-PSI metrics can be fine-tuned using two parameters:
+| Variable | Type | Description |
+|----------|------|-------------|
+| `memory_usage` | `f64` | Current memory usage as a percentage of the limit (%) |
+| `memory_current` | `f64` | Current memory usage in bytes |
+| `memory_max` | `f64` | Memory limit in bytes |
+| `oom_score` | `f64` | Current OOM score |
+| `oom_score_adj` | `f64` | OOM score adjustment |
+| `{resource}_pressure_{severity}_{window}` | `f64` | Pressure metrics |
 
-- **Stall Severity** (`--stall-severity`):
-  - `some`: Measures time when *at least one* task is stalled on a resource
-  - `full`: Measures time when *all non-idle* tasks are stalled (default)
-  - Use `some` for earlier warnings, `full` for more severe conditions
+**Pressure Metric Components:**
+- **Resource**: `memory`, `io`, `cpu`
+- **Severity**: `some`, `full`
+- **Window**: `avg10`, `avg60`, `avg300`, `total`
 
-- **Stall Window** (`--stall-window`):
-  - `avg10`: 10-second moving average (default, most responsive)
-  - `avg60`: 60-second moving average (balanced)
-  - `avg300`: 300-second moving average (smoothest, least noise)
-  - Shorter windows react faster but may trigger on transient spikes
+*Example*: `memory_pressure_full_avg10 > 20`
 
 ## Metrics
 
@@ -94,7 +103,7 @@ cmdline) is not seen for 1 minute, its metrics will be removed.
 - Kubernetes cluster with Linux nodes (kernel 4.20+ for full PSI support)
 - Pod must have `shareProcessNamespace: true`
 - Container requires `SYS_PTRACE` capability to send signals
-- At least one pair of warning/critical thresholds must be configured
+- Both `--warning` and `--critical` expressions must be configured
 
 ## Installation
 
@@ -122,8 +131,8 @@ spec:
   - name: oomhero
     image: ghcr.io/ricardomaraschini/oomhero:latest
     args:
-      - --memory-usage-warning=75
-      - --memory-usage-critical=90
+      - --warning="memory_usage > 75"
+      - --critical="memory_usage > 90"
       - --loop-interval=100ms
       - --cooldown-interval=30s
     resources:
@@ -147,7 +156,7 @@ cd oomhero
 make release
 
 # Run locally
-./target/release/oomhero --memory-usage-warning=75 --memory-usage-critical=90
+./target/release/oomhero --warning "memory_usage > 75" --critical "memory_usage > 90"
 ```
 
 ## Usage
@@ -156,70 +165,54 @@ make release
 
 ```bash
 oomhero \
-  --memory-usage-warning=75 \
-  --memory-usage-critical=90 \
-  --loop-interval=100ms \
-  --cooldown-interval=30s
+  --warning "memory_usage > 75" \
+  --critical "memory_usage > 90" \
+  --loop-interval 100ms \
+  --cooldown-interval 30s
 ```
 
 ### Comprehensive Resource Monitoring
 
 ```bash
 oomhero \
-  --memory-usage-warning=70 \
-  --memory-usage-critical=85 \
-  --memory-pressure-warning=50 \
-  --memory-pressure-critical=80 \
-  --io-pressure-warning=60 \
-  --io-pressure-critical=90 \
-  --cpu-pressure-warning=70 \
-  --cpu-pressure-critical=95 \
-  --loop-interval=200ms \
-  --cooldown-interval=30s
+  --warning "memory_usage > 70 || memory_pressure_full_avg60 > 50" \
+  --critical "memory_usage > 85 || memory_pressure_full_avg60 > 80" \
+  --loop-interval 200ms \
+  --cooldown-interval 30s
+```
+
+### Custom OOM Score Logic
+
+```bash
+oomhero \
+  --warning "oom_score > 500" \
+  --critical "oom_score > 800"
 ```
 
 ### Custom Signals
 
 ```bash
 oomhero \
-  --memory-usage-warning=75 \
-  --memory-usage-critical=90 \
-  --warning-signal=SIGHUP \
-  --critical-signal=SIGTERM
-```
-
-### Fine-tuning PSI Metrics
-
-```bash
-oomhero \
-  --memory-pressure-warning=50 \
-  --memory-pressure-critical=80 \
-  --stall-severity=some \
-  --stall-window=avg60
+  --warning "memory_usage > 75" \
+  --critical "memory_usage > 90" \
+  --warning-signal SIGHUP \
+  --critical-signal SIGTERM
 ```
 
 ## Configuration Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `--memory-usage-warning` | Warning threshold for memory usage (%) | 0 (disabled) |
-| `--memory-usage-critical` | Critical threshold for memory usage (%) | 0 (disabled) |
-| `--memory-pressure-warning` | Warning threshold for memory pressure (%) | 0 (disabled) |
-| `--memory-pressure-critical` | Critical threshold for memory pressure (%) | 0 (disabled) |
-| `--io-pressure-warning` | Warning threshold for I/O pressure (%) | 0 (disabled) |
-| `--io-pressure-critical` | Critical threshold for I/O pressure (%) | 0 (disabled) |
-| `--cpu-pressure-warning` | Warning threshold for CPU pressure (%) | 0 (disabled) |
-| `--cpu-pressure-critical` | Critical threshold for CPU pressure (%) | 0 (disabled) |
-| `--stall-severity` | PSI stall severity level (some, full) | full |
-| `--stall-window` | PSI stall time window (avg10, avg60, avg300) | avg10 |
+| `--warning` | Expression for warning signal | (empty) |
+| `--critical` | Expression for critical signal | (empty) |
 | `--loop-interval` | Process scanning frequency | 100ms |
 | `--cooldown-interval` | Minimum time between repeated signals | 30s |
 | `--warning-signal` | Signal sent at warning threshold | SIGUSR1 |
 | `--critical-signal` | Signal sent at critical threshold | SIGUSR2 |
 | `--version` | Display version information | false |
 
-**Note**: At least one pair of warning and critical thresholds must be
-configured for OOMHero to run.
+**Note**: Both `--warning` and `--critical` expressions must be provided for
+OOMHero to run.
 
 ## Important Considerations
 
@@ -236,12 +229,12 @@ control scan frequency and resource consumption.
 
 ## Troubleshooting
 
-### OOMHero exits with "missing warning and critical for at least one specific counter"
+### OOMHero exits with "invalid expression: ..."
 
-Ensure at least one pair of warning and critical thresholds is configured.
-Example:
+Ensure both `--warning` and `--critical` expressions are valid `fasteval`
+expressions and provided when starting OOMHero. Example:
 ```bash
---memory-usage-warning=75 --memory-usage-critical=90
+--warning "memory_usage > 75" --critical "memory_usage > 90"
 ```
 
 ### Signals not being received by application
