@@ -23,6 +23,9 @@ pub enum Error {
     #[error(transparent)]
     BuildError(#[from] metrics_exporter_prometheus::BuildError),
 
+    #[error(transparent)]
+    FastEvalError(#[from] fasteval::error::Error),
+
     #[error("{0}")]
     Message(String),
 }

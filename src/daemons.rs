@@ -1,4 +1,4 @@
-use super::arguments;
+use super::thresholds;
 use super::events;
 use super::metrics;
 use super::processes;
@@ -29,7 +29,7 @@ struct SignalRecord {
 pub struct Monitor<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> {
     signal_sender: U,
     sink: S,
-    thresholds: arguments::Thresholds,
+    thresholds: thresholds::Checker,
     processes_discover: T,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
@@ -45,7 +45,7 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
     // time we signaled a process.
     pub fn new(
         sink: S,
-        thresholds: arguments::Thresholds,
+        thresholds: thresholds::Checker,
         processes_discover: T,
         signal_sender: U,
     ) -> Self {
@@ -134,7 +134,7 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
                     continue;
                 }
 
-                let cd = match self.processes_discover.collect_process_data(process.pid) {
+                let mut cd = match self.processes_discover.collect_process_data(process.pid) {
                     Ok(usage) => usage,
                     Err(err) => {
                         self.sink.send(
@@ -146,12 +146,24 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
                     }
                 };
 
+
                 // we only report metrics once the passes counter zeroes out.
                 if passes == 0 {
                     self.metrics_server.report_collected_data(&process, &cd);
                 }
 
-                let (warning, critical) = self.thresholds.check_against(&cd);
+                let (warning, critical) = match self.thresholds.against(&mut cd) {
+                    Ok(values) => values,
+                    Err(err) => {
+                        self.sink.send(
+                            events::Event::low_prio()
+                                .with_process(&process)
+                                .with_message(format!("error evaluationg process data: {err}")),
+                        );
+                        continue;
+                    }
+                };
+
                 if warning || critical {
                     if critical {
                         self.send_signal(&process, self.critical_signal, &cd, "critical");
