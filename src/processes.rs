@@ -194,7 +194,7 @@ impl<T: system::Provider> ProcFsReader<T> {
     // can use. Kernel sets the limit to the string 'max' if no upper limit is set.
     fn has_memory_limit(&self, pid: i32) -> Result<bool, Error> {
         let path = self.system.path_to_memory_max(pid)?;
-        Ok(fs::read_to_string(path)?.trim().parse::<i32>().is_ok())
+        Ok(fs::read_to_string(path)?.trim().parse::<i128>().is_ok())
     }
 
     // oom_score returns the oom score for a given pid. The score is calculated by reading the
