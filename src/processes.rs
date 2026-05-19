@@ -48,7 +48,7 @@ pub struct PressureAverages {
     pub avg10: f32,
     pub avg60: f32,
     pub avg300: f32,
-    pub total: f32,
+    pub total: u64,
 }
 
 impl PartialEq for PressureAverages {
@@ -66,8 +66,8 @@ impl PartialEq for PressureAverages {
 // we also keep track of the process memory usage (%) and the oom_score.
 #[derive(Debug, Default, Clone)]
 pub struct CollectedData {
-    pub memory_max: f32,
-    pub memory_current: f32,
+    pub memory_max: u64,
+    pub memory_current: u64,
     pub oom_score: i32,
     pub pressure: Pressure,
 }
@@ -75,8 +75,8 @@ pub struct CollectedData {
 impl CollectedData {
     // memory_usage returns the memory in use as percentage.
     pub fn memory_usage(&self) -> f32 {
-        if self.memory_max > 0. {
-            self.memory_current / self.memory_max * 100.
+        if self.memory_max > 0 {
+            self.memory_current as f32 / self.memory_max as f32 * 100.
         } else {
             0.
         }
@@ -180,12 +180,12 @@ impl<T: system::Provider> ProcFsReader<T> {
     // memory_stats returns stats about memory utilization for the provided process id. Values are
     // returned as a tuple where the first element is the current memory utilization and the second
     // the maximum allowed. This data is read from the cgroup's /proc files.
-    fn memory_stats(&self, pid: i32) -> Result<(f32, f32), Error> {
+    fn memory_stats(&self, pid: i32) -> Result<(u64, u64), Error> {
         let path = self.system.path_to_memory_max(pid)?;
-        let memory_max: f32 = fs::read_to_string(path)?.trim().parse()?;
+        let memory_max: u64 = fs::read_to_string(path)?.trim().parse()?;
 
         let path = self.system.path_to_memory_current(pid)?;
-        let memory_current: f32 = fs::read_to_string(path)?.trim().parse()?;
+        let memory_current: u64 = fs::read_to_string(path)?.trim().parse()?;
 
         Ok((memory_current, memory_max))
     }
@@ -194,7 +194,7 @@ impl<T: system::Provider> ProcFsReader<T> {
     // can use. Kernel sets the limit to the string 'max' if no upper limit is set.
     fn has_memory_limit(&self, pid: i32) -> Result<bool, Error> {
         let path = self.system.path_to_memory_max(pid)?;
-        Ok(fs::read_to_string(path)?.trim().parse::<i128>().is_ok())
+        Ok(fs::read_to_string(path)?.trim().parse::<u64>().is_ok())
     }
 
     // oom_score returns the oom score for a given pid. The score is calculated by reading the

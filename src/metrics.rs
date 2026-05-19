@@ -59,7 +59,7 @@ impl Server {
             ("avg10", d.avg10),
             ("avg60", d.avg60),
             ("avg300", d.avg300),
-            ("total", d.total),
+            ("total", d.total as f32),
         ];
         for (window, value) in severity_windows {
             let labels = [

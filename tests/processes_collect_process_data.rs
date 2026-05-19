@@ -95,8 +95,8 @@ fn collect_process_data_unlimited_memory_process() -> Result<(), errors::Error> 
     let proc = processes::ProcFsReader::new(mock);
     let result = proc.collect_process_data(1)?;
     assert_eq!(result.oom_score, 0);
-    assert_eq!(result.memory_max, 0.);
-    assert_eq!(result.memory_current, 0.);
+    assert_eq!(result.memory_max, 0);
+    assert_eq!(result.memory_current, 0);
     assert_eq!(result.memory_usage(), 0.);
     Ok(())
 }
@@ -108,8 +108,8 @@ fn collect_process_data_10_pct_memory_usage() -> Result<(), errors::Error> {
     let proc = processes::ProcFsReader::new(mock);
     let result = proc.collect_process_data(1)?;
     assert_eq!(result.oom_score, 0);
-    assert_eq!(result.memory_max, 1000.);
-    assert_eq!(result.memory_current, 100.);
+    assert_eq!(result.memory_max, 1000);
+    assert_eq!(result.memory_current, 100);
     assert_eq!(result.memory_usage(), 10.);
     Ok(())
 }
@@ -130,7 +130,7 @@ fn collect_process_data_invalid_pressure_data() -> Result<(), errors::Error> {
     let mock = mock_for_fake_process(&proc_name);
     let proc = processes::ProcFsReader::new(mock);
     let result = proc.collect_process_data(1);
-    assert!(matches!(result, Err(errors::Error::ParseFloatError(_))));
+    assert!(matches!(result, Err(errors::Error::ParseIntError(_))));
     Ok(())
 }
 
@@ -147,13 +147,13 @@ fn collect_process_data_full_pressure_data() -> Result<(), errors::Error> {
                 avg10: 1.,
                 avg60: 2.,
                 avg300: 3.,
-                total: 4.,
+                total: 4,
             },
             full: processes::PressureAverages {
                 avg10: 5.,
                 avg60: 6.,
                 avg300: 7.,
-                total: 8.,
+                total: 8,
             },
         },
         io: processes::PressureData {
@@ -161,13 +161,13 @@ fn collect_process_data_full_pressure_data() -> Result<(), errors::Error> {
                 avg10: 9.,
                 avg60: 10.,
                 avg300: 11.,
-                total: 12.,
+                total: 12,
             },
             full: processes::PressureAverages {
                 avg10: 13.,
                 avg60: 14.,
                 avg300: 15.,
-                total: 16.,
+                total: 16,
             },
         },
         cpu: processes::PressureData {
@@ -175,13 +175,13 @@ fn collect_process_data_full_pressure_data() -> Result<(), errors::Error> {
                 avg10: 17.,
                 avg60: 18.,
                 avg300: 19.,
-                total: 20.,
+                total: 20,
             },
             full: processes::PressureAverages {
                 avg10: 21.,
                 avg60: 22.,
                 avg300: 23.,
-                total: 24.,
+                total: 24,
             },
         },
     };

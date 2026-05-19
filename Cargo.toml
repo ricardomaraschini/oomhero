@@ -1,6 +1,6 @@
 [package]
 name = "oomhero"
-version = "2.1.3"
+version = "2.1.4"
 edition = "2024"
 
 [build-dependencies]

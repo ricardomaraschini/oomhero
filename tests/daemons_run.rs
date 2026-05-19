@@ -37,8 +37,8 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 95.,
+                memory_max: 100,
+                memory_current: 95,
                 ..Default::default()
             })
         });
@@ -114,8 +114,8 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 80.,
+                memory_max: 100,
+                memory_current: 80,
                 oom_score: 0,
                 pressure: processes::Pressure::default(),
             })
@@ -190,7 +190,7 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
                             avg10: 21.,
                             avg60: 0.,
                             avg300: 0.,
-                            total: 0.,
+                            total: 0,
                         },
                         ..Default::default()
                     },
@@ -250,8 +250,8 @@ fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 91.,
+                memory_max: 100,
+                memory_current: 91,
                 oom_score: 0,
                 pressure: processes::Pressure {
                     ..Default::default()
@@ -307,8 +307,8 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 91.,
+                memory_max: 100,
+                memory_current: 91,
                 oom_score: 0,
                 pressure: processes::Pressure {
                     ..Default::default()
@@ -377,7 +377,7 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
                             avg10: 21.,
                             avg60: 0.,
                             avg300: 0.,
-                            total: 0.,
+                            total: 0,
                         },
                         ..Default::default()
                     },
@@ -442,8 +442,8 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 50.,
+                memory_max: 100,
+                memory_current: 50,
                 oom_score: 0,
                 pressure: processes::Pressure {
                     memory: processes::PressureData {
@@ -451,7 +451,7 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
                             avg10: 21.,
                             avg60: 0.,
                             avg300: 0.,
-                            total: 0.,
+                            total: 0,
                         },
                         ..Default::default()
                     },
@@ -517,8 +517,8 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 75., // Warning level for memory usage
+                memory_max: 100,
+                memory_current: 75, // Warning level for memory usage
                 oom_score: 0,
                 pressure: processes::Pressure {
                     memory: processes::PressureData {
@@ -526,7 +526,7 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
                             avg10: 25., // Critical level for memory pressure
                             avg60: 0.,
                             avg300: 0.,
-                            total: 0.,
+                            total: 0,
                         },
                         ..Default::default()
                     },
@@ -589,8 +589,8 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 75.,
+                memory_max: 100,
+                memory_current: 75,
                 oom_score: 0,
                 pressure: processes::Pressure {
                     ..Default::default()
@@ -648,8 +648,8 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
         .with(predicate::eq(2))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 10.,
+                memory_max: 100,
+                memory_current: 10,
                 oom_score: 0,
                 pressure: processes::Pressure {
                     ..Default::default()
@@ -662,8 +662,8 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
         .with(predicate::eq(3))
         .returning(|_pid| {
             Ok(processes::CollectedData {
-                memory_max: 100.,
-                memory_current: 20.,
+                memory_max: 100,
+                memory_current: 20,
                 oom_score: 0,
                 pressure: processes::Pressure {
                     ..Default::default()
