@@ -1,6 +1,7 @@
 use futures_util::StreamExt;
 use log::info;
 use nix::sys::stat;
+use podman_api::Podman;
 use podman_api::models::LinuxBlockIo;
 use podman_api::models::LinuxCpu;
 use podman_api::models::LinuxMemory;
@@ -8,7 +9,6 @@ use podman_api::models::LinuxResources;
 use podman_api::models::LinuxThrottleDevice;
 use podman_api::models::PortMapping;
 use podman_api::opts;
-use podman_api::Podman;
 use serde::Deserialize;
 use std::env;
 use std::fs;

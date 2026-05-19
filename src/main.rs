@@ -14,9 +14,9 @@ use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
 use std::env;
+use std::process;
 use std::sync;
 use std::thread;
-use std::process;
 
 const COMMIT_HASH: &str = env!("VERGEN_GIT_SHA");
 const COMMIT_DIRTY: &str = env!("VERGEN_GIT_DIRTY");
@@ -31,7 +31,7 @@ fn main() {
         return;
     }
 
-    let thresholds_checker = match flags.thresholds.checker() {
+    let thresholds_checker = match flags.thresholds_checker() {
         Ok(checker) => checker,
         Err(error) => {
             error!("{}", error);

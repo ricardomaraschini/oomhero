@@ -1,5 +1,7 @@
-use super::thresholds;
+use super::errors;
+use super::processes;
 use clap::Parser;
+use fasteval::Evaler;
 use nix::sys::signal;
 use std::fmt;
 use std::time;
@@ -57,8 +59,40 @@ pub struct Flags {
     #[arg(long, default_value = "false", help = "Print version")]
     pub version: bool,
 
-    #[command(flatten)]
-    pub thresholds: thresholds::Thresholds,
+    #[arg(
+        long,
+        value_parser = validate_expression,
+        help = "Expression whose evaluation causes a warning signal"
+    )]
+    pub warning: String,
+
+    #[arg(
+        long,
+        value_parser = validate_expression,
+        help = "Expression whose evaluation causes a critical signal"
+    )]
+    pub critical: String,
+}
+
+impl Flags {
+    // thresholds_checker "compiles" both warning and critical expressions and return an entity
+    // capable of being assessed against processes::CollectedData.
+    pub fn thresholds_checker(&self) -> Result<ThresholdsChecker, errors::Error> {
+        let parser = fasteval::Parser::new();
+
+        let mut warning_slab = fasteval::Slab::new();
+        let warning = parser.parse(&self.warning, &mut warning_slab.ps)?;
+
+        let mut critical_slab = fasteval::Slab::new();
+        let critical = parser.parse(&self.critical, &mut critical_slab.ps)?;
+
+        Ok(ThresholdsChecker {
+            warning_slab,
+            critical_slab,
+            warning,
+            critical,
+        })
+    }
 }
 
 impl fmt::Display for Flags {
@@ -70,12 +104,52 @@ impl fmt::Display for Flags {
             "signals:{:?},{:?} ",
             self.warning_signal, self.critical_signal
         )?;
-        write!(fp, "{}", self.thresholds)?;
-        Ok(())
+        write!(fp, "w:'{}', c:'{}'", self.warning, self.critical)
+    }
+}
+
+// ThresholdsChecker is an entity capable of evaluting a CollectedData struct against a warning and
+// critical expressions.
+pub struct ThresholdsChecker {
+    warning_slab: fasteval::Slab,
+    critical_slab: fasteval::Slab,
+    warning: fasteval::parser::ExpressionI,
+    critical: fasteval::parser::ExpressionI,
+}
+
+impl ThresholdsChecker {
+    // against checks the thresholds expressions against the provided collected data. Returns a
+    // tuple of bool where .0 is warning and .1 is critical.
+    pub fn against(
+        &self,
+        cd: &mut processes::CollectedData,
+    ) -> Result<(bool, bool), errors::Error> {
+        let warning = self
+            .warning
+            .from(&self.warning_slab.ps)
+            .eval(&self.warning_slab, cd)?;
+
+        let critical = self
+            .critical
+            .from(&self.critical_slab.ps)
+            .eval(&self.critical_slab, cd)?;
+
+        Ok((warning >= 1., critical >= 1.))
     }
 }
 
 // parse_duration is used to parse the interval command line flag.
 fn parse_duration(s: &str) -> Result<time::Duration, String> {
     duration_str::parse(s).map_err(|e| e.to_string())
+}
+
+// validate_expression attempts to parse the expression provided by the user and errors out if it
+// does not make sense to us. This is just for early return.
+fn validate_expression(s: &str) -> Result<String, String> {
+    let mut slab = fasteval::Slab::new();
+    let parser = fasteval::Parser::new();
+    match parser.parse(s, &mut slab.ps) {
+        Ok(_) => Ok(s.to_owned()),
+        Err(err) => Err(format!("invalid expression: {}", err)),
+    }
 }

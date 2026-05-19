@@ -1,11 +1,11 @@
 use mockall::predicate;
 use nix::sys::signal;
+use oomhero::arguments;
 use oomhero::daemons;
 use oomhero::errors;
 use oomhero::events;
 use oomhero::processes;
 use oomhero::signals;
-use oomhero::thresholds;
 use std::process;
 use std::sync::mpsc;
 use std::thread;
@@ -18,9 +18,14 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
     let mut events_sink = events::MockSender::new();
     events_sink.expect_send().returning(|_evt| {});
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -59,16 +64,15 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
         _ = tx.send(true);
     });
 
-    let monitor =
-        daemons::Monitor::new(
-            events_sink,
-            thresholds.checker().unwrap(),
-            processes_explorer,
-            signals_sender,
-        )
-            .with_loop_interval(time::Duration::from_millis(10))
-            .with_critical_signal(signal::SIGKILL)
-            .with_cooldown_interval(time::Duration::from_secs(60));
+    let monitor = daemons::Monitor::new(
+        events_sink,
+        arguments.thresholds_checker().unwrap(),
+        processes_explorer,
+        signals_sender,
+    )
+    .with_loop_interval(time::Duration::from_millis(10))
+    .with_critical_signal(signal::SIGKILL)
+    .with_cooldown_interval(time::Duration::from_secs(60));
     monitor.run(rx);
     Ok(())
 }
@@ -87,9 +91,14 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -148,7 +157,7 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -170,9 +179,14 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("cpu_pressure_some_avg10 > 10"),
         critical: String::from("cpu_pressure_some_avg10 > 20"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -219,7 +233,7 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -239,9 +253,14 @@ fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<
         assert_eq!(evt.pid, 2);
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_pressure_some_avg10 > 70"),
         critical: String::from("memory_pressure_some_avg10 > 90"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -278,7 +297,7 @@ fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -300,9 +319,14 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -343,7 +367,7 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -366,9 +390,14 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("io_pressure_full_avg10 > 10"),
         critical: String::from("io_pressure_full_avg10 > 20"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -415,7 +444,7 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -438,9 +467,14 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_pressure_full_avg10 > 10"),
         critical: String::from("memory_pressure_full_avg10 > 20"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -490,7 +524,7 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -513,9 +547,14 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_usage > 70 || memory_pressure_some_avg10 > 10"),
         critical: String::from("memory_usage > 90 || memory_pressure_some_avg10 > 20"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -565,7 +604,7 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -589,9 +628,14 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("1 > 0"),
         critical: String::from("memory_usage > 90"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -632,7 +676,7 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -651,9 +695,14 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
         assert_eq!(evt.message, String::from("process usage within limits"));
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
     let mut processes_explorer = processes::MockProcessProvider::new();
 
@@ -709,7 +758,7 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
@@ -731,9 +780,14 @@ fn daemons_run_fail_collecting_process_data() -> Result<(), errors::Error> {
         );
     });
 
-    let thresholds = thresholds::Thresholds {
+    let arguments = arguments::Flags {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
+        loop_interval: time::Duration::from_secs(1),
+        cooldown_interval: time::Duration::from_secs(30),
+        warning_signal: signal::SIGUSR1,
+        critical_signal: signal::SIGUSR2,
+        version: false,
     };
     let mut processes_explorer = processes::MockProcessProvider::new();
 
@@ -758,7 +812,7 @@ fn daemons_run_fail_collecting_process_data() -> Result<(), errors::Error> {
 
     let monitor = daemons::Monitor::new(
         events_sink,
-        thresholds.checker().unwrap(),
+        arguments.thresholds_checker().unwrap(),
         processes_explorer,
         signals_sender,
     )
