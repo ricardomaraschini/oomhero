@@ -120,7 +120,8 @@ fn collect_process_data_oom_with_adjustment() -> Result<(), errors::Error> {
     let mock = mock_for_fake_process(&proc_name);
     let proc = processes::ProcFsReader::new(mock);
     let result = proc.collect_process_data(1)?;
-    assert_eq!(result.oom_score, 900);
+    assert_eq!(result.oom_score, 1000);
+    assert_eq!(result.oom_score_adj, -100);
     Ok(())
 }
 

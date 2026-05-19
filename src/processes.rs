@@ -16,6 +16,26 @@ pub struct Pressure {
     pub cpu: PressureData,
 }
 
+impl fasteval::EvalNamespace for Pressure {
+    // lookup implements the eval namespace for the fasteval package. This function returns a f64
+    // based on a "name". Users may specify queries in the command line as memory_usage > 60 and
+    // this is the function that turns "memory_usage" into the 60 value.
+    fn lookup(&mut self, name: &str, args: Vec<f64>, keybuf: &mut String) -> Option<f64> {
+        let parts: Vec<&str> = name.split('_').collect();
+        if parts.len() != 4 || parts[1] != "pressure" {
+            return None;
+        }
+
+        let suffix = format!("{}_{}", parts[2], parts[3]);
+        match parts[0] {
+            "memory" => self.memory.lookup(&suffix, args, keybuf),
+            "io" => self.io.lookup(&suffix, args, keybuf),
+            "cpu" => self.cpu.lookup(&suffix, args, keybuf),
+            _ => None,
+        }
+    }
+}
+
 impl PartialEq for Pressure {
     // eq checks for equality between two pressure objects. We implement this trait mostly so our
     // test are shorter.
@@ -31,6 +51,23 @@ impl PartialEq for Pressure {
 pub struct PressureData {
     pub some: PressureAverages,
     pub full: PressureAverages,
+}
+
+impl fasteval::EvalNamespace for PressureData {
+    // lookup implements the eval namespace for the fasteval package. This function returns a f64
+    // based on a "name". Users may specify queries in the command line as memory_usage > 60 and
+    // this is the function that turns "memory_usage" into the 60 value.
+    fn lookup(&mut self, name: &str, args: Vec<f64>, keybuf: &mut String) -> Option<f64> {
+        let parts: Vec<&str> = name.split('_').collect();
+        if parts.len() != 2 {
+            return None;
+        }
+        match parts[0] {
+            "some" => self.some.lookup(parts[1], args, keybuf),
+            "full" => self.full.lookup(parts[1], args, keybuf),
+            _ => None,
+        }
+    }
 }
 
 impl PartialEq for PressureData {
@@ -51,6 +88,21 @@ pub struct PressureAverages {
     pub total: u64,
 }
 
+impl fasteval::EvalNamespace for PressureAverages {
+    // lookup implements the eval namespace for the fasteval package. This function returns a f64
+    // based on a "name". Users may specify queries in the command line as memory_usage > 60 and
+    // this is the function that turns "memory_usage" into the 60 value.
+    fn lookup(&mut self, name: &str, _: Vec<f64>, _: &mut String) -> Option<f64> {
+        match name {
+            "avg10" => Some(self.avg10 as f64),
+            "avg60" => Some(self.avg60 as f64),
+            "avg300" => Some(self.avg300 as f64),
+            "total" => Some(self.total as f64),
+            _ => None,
+        }
+    }
+}
+
 impl PartialEq for PressureAverages {
     // eq checks for equality between two pressure average objects. We implement this trait mostly
     // so our test are shorter.
@@ -69,6 +121,7 @@ pub struct CollectedData {
     pub memory_max: u64,
     pub memory_current: u64,
     pub oom_score: i32,
+    pub oom_score_adj: i32,
     pub pressure: Pressure,
 }
 
@@ -89,38 +142,19 @@ impl fasteval::EvalNamespace for CollectedData {
     // memory_pressure_full_avg60 > 10 || memory_usage > 50.
     // io_pressure_full_avg10 > 10 || memory_pressure_full_avg10 > 10
     // i.e. this is the function that translates io_pressure_full_avg10 into a float 64.
-    fn lookup(&mut self, name: &str, _: Vec<f64>, _: &mut std::string::String) -> Option<f64> {
-        if name == "memory_usage" {
-            return Some(self.memory_usage() as f64);
-        }
-
-        // from now on we only expect data to be of type pressure. we split by underscore to better
-        // understand what the user is requesting for. e.g. memory_pressure_full_avg10.
-        let parts: Vec<&str> = name.split('_').collect();
-        if parts.len() != 4 {
-            return None;
-        }
-        let (resource, kind, severity, window) = (parts[0], parts[1], parts[2], parts[3]);
-        if kind != "pressure" {
-            return None;
-        }
-
-        let data = match resource {
-            "memory" => &self.pressure.memory,
-            "io" => &self.pressure.io,
-            "cpu" => &self.pressure.cpu,
-            _ => return None,
-        };
-        let averages = match severity {
-            "full" => &data.full,
-            "some" => &data.some,
-            _ => return None,
-        };
-        match window {
-            "avg10" => Some(averages.avg10 as f64),
-            "avg60" => Some(averages.avg60 as f64),
-            "avg300" => Some(averages.avg300 as f64),
-            _ => None,
+    fn lookup(
+        &mut self,
+        name: &str,
+        args: Vec<f64>,
+        keybuf: &mut std::string::String,
+    ) -> Option<f64> {
+        match name {
+            "memory_usage" => Some(self.memory_usage() as f64),
+            "memory_current" => Some(self.memory_current as f64),
+            "memory_max" => Some(self.memory_max as f64),
+            "oom_score" => Some(self.oom_score as f64),
+            "oom_score_adj" => Some(self.oom_score_adj as f64),
+            _ => self.pressure.lookup(name, args, keybuf),
         }
     }
 }
@@ -244,14 +278,14 @@ impl<T: system::Provider> ProcFsReader<T> {
     // is on the 0-1000 range (the higher the most likely for the process to be chosen during
     // an OOMKill event). XXX processes owned by "root" have an automatic adjustment of -30 but
     // we are not taking that into account.
-    fn oom_score(&self, pid: i32) -> Result<i32, Error> {
+    fn oom_score(&self, pid: i32) -> Result<(i32, i32), Error> {
         let path = self.system.path_to_oom_score(pid);
         let oom_score: i32 = fs::read_to_string(path)?.trim().parse()?;
 
         let path = self.system.path_to_oom_score_adj(pid);
         let oom_score_adj: i32 = fs::read_to_string(path)?.trim().parse()?;
 
-        Ok(oom_score + oom_score_adj)
+        Ok((oom_score, oom_score_adj))
     }
 
     // cmdline reads the cmdline for a given pid. Commands on cmdline are defined as a string
@@ -294,8 +328,10 @@ impl<T: system::Provider> ProcessProvider for ProcFsReader<T> {
     // collected data struct or an error. XXX pressure reads are skipped from cgroups v1. If
     // the process has no memory limit then its memory usage is 0%.
     fn collect_process_data(&self, pid: i32) -> Result<CollectedData, Error> {
+        let (oom_score, oom_score_adj) = self.oom_score(pid)?;
         let mut result = CollectedData {
-            oom_score: self.oom_score(pid)?,
+            oom_score,
+            oom_score_adj,
             ..Default::default()
         };
 

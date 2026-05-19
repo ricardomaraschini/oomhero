@@ -14,9 +14,9 @@ use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
 use std::env;
-use std::process;
 use std::sync;
 use std::thread;
+use std::process;
 
 const COMMIT_HASH: &str = env!("VERGEN_GIT_SHA");
 const COMMIT_DIRTY: &str = env!("VERGEN_GIT_DIRTY");
@@ -31,10 +31,13 @@ fn main() {
         return;
     }
 
-    if let Err(err) = flags.thresholds.validate() {
-        warn!("{}", err);
-        process::exit(1);
-    }
+    let thresholds_checker = match flags.thresholds.checker() {
+        Ok(checker) => checker,
+        Err(error) => {
+            error!("{}", error);
+            process::exit(1);
+        }
+    };
 
     banner();
     info!("config: {}", &flags);
@@ -49,7 +52,7 @@ fn main() {
     let syscgroups = system::SystemCGroups::default();
     let processes_explorer = processes::ProcFsReader::new(syscgroups);
     let signal_sender = signals::SignalSender::default();
-    let monitor = daemons::Monitor::new(tx, flags.thresholds, processes_explorer, signal_sender)
+    let monitor = daemons::Monitor::new(tx, thresholds_checker, processes_explorer, signal_sender)
         .with_cooldown_interval(flags.cooldown_interval)
         .with_loop_interval(flags.loop_interval)
         .with_warning_signal(flags.warning_signal)

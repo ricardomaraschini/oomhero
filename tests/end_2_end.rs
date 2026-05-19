@@ -1,7 +1,6 @@
 use futures_util::StreamExt;
 use log::info;
 use nix::sys::stat;
-use podman_api::Podman;
 use podman_api::models::LinuxBlockIo;
 use podman_api::models::LinuxCpu;
 use podman_api::models::LinuxMemory;
@@ -9,6 +8,7 @@ use podman_api::models::LinuxResources;
 use podman_api::models::LinuxThrottleDevice;
 use podman_api::models::PortMapping;
 use podman_api::opts;
+use podman_api::Podman;
 use serde::Deserialize;
 use std::env;
 use std::fs;
@@ -320,12 +320,8 @@ async fn end_2_end() {
     create_test_pod(
         String::from("oomhero_test_pod"),
         &vec![
-            "--memory-usage-warning=80",
-            "--memory-usage-critical=90",
-            "--cpu-pressure-warning=80",
-            "--cpu-pressure-critical=90",
-            "--io-pressure-warning=50",
-            "--io-pressure-critical=80",
+            "--warning=memory_usage > 80 || cpu_pressure_full_avg10 > 80 || io_pressure_full_avg10 > 50",
+            "--critical=memory_usage > 90 || cpu_pressure_full_avg10 > 90 || io_pressure_full_avg10 > 80",
         ],
     )
     .await;
