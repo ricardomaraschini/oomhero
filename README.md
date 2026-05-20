@@ -131,10 +131,10 @@ spec:
   - name: oomhero
     image: ghcr.io/ricardomaraschini/oomhero:latest
     args:
-      - --warning="memory_usage > 75"
-      - --critical="memory_usage > 90"
-      - --loop-interval=100ms
-      - --cooldown-interval=30s
+    - "--warning=memory_usage > 75"
+    - "--critical=memory_usage > 90"
+    - "--loop-interval=100ms"
+    - "--cooldown-interval=30s"
     resources:
       limits:
         cpu: "1m"
