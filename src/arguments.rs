@@ -1,5 +1,5 @@
-use super::errors;
-use super::processes;
+use super::errors::Error;
+use super::processes::CollectedData;
 use clap::Parser;
 use fasteval::Evaler;
 use nix::sys::signal;
@@ -23,8 +23,7 @@ For Kernel pressure information please visit https://docs.kernel.org/accounting/
 ";
 
 #[derive(Parser, Debug)]
-#[command(name = "oomhero")]
-#[command(about = ABOUT)]
+#[command(name = "oomhero", about = ABOUT)]
 pub struct Flags {
     #[arg(
         long,
@@ -77,7 +76,7 @@ pub struct Flags {
 impl Flags {
     // thresholds_checker "compiles" both warning and critical expressions and return an entity
     // capable of being assessed against processes::CollectedData.
-    pub fn thresholds_checker(&self) -> Result<ThresholdsChecker, errors::Error> {
+    pub fn thresholds_checker(&self) -> Result<ThresholdsChecker, Error> {
         let parser = fasteval::Parser::new();
 
         let mut warning_slab = fasteval::Slab::new();
@@ -104,7 +103,11 @@ impl fmt::Display for Flags {
             "signals:{:?},{:?} ",
             self.warning_signal, self.critical_signal
         )?;
-        write!(fp, "w:'{}', c:'{}'", self.warning, self.critical)
+        write!(
+            fp,
+            "warning:'{}', critical:'{}'",
+            self.warning, self.critical
+        )
     }
 }
 
@@ -120,10 +123,7 @@ pub struct ThresholdsChecker {
 impl ThresholdsChecker {
     // against checks the thresholds expressions against the provided collected data. Returns a
     // tuple of bool where .0 is warning and .1 is critical.
-    pub fn against(
-        &self,
-        cd: &mut processes::CollectedData,
-    ) -> Result<(bool, bool), errors::Error> {
+    pub fn against(&self, cd: &mut CollectedData) -> Result<(bool, bool), Error> {
         let warning = self
             .warning
             .from(&self.warning_slab.ps)
