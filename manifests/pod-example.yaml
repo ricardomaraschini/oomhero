@@ -26,8 +26,8 @@ spec:
     image: ghcr.io/ricardomaraschini/oomhero:latest
     imagePullPolicy: Always
     args:
-    - --memory-usage-warning=80
-    - --memory-usage-critical=90
+    - "--warning=memory_usage > 75"
+    - "--critical=memory_usage > 90"
     resources:
       limits:
         cpu: "10m"
