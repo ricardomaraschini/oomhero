@@ -1,7 +1,7 @@
 use super::arguments;
-use super::arguments::CheckerResult::Warning;
 use super::arguments::CheckerResult::Critical;
 use super::arguments::CheckerResult::None;
+use super::arguments::CheckerResult::Warning;
 use super::events;
 use super::metrics;
 use super::processes;
@@ -156,7 +156,9 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
 
                 match self.thresholds.against(&mut cd) {
                     Ok(result) => match result {
-                        Critical => self.send_signal(&process, self.critical_signal, &cd, "critical"),
+                        Critical => {
+                            self.send_signal(&process, self.critical_signal, &cd, "critical")
+                        }
                         Warning => self.send_signal(&process, self.warning_signal, &cd, "warning"),
                         None => self.sink.send(
                             events::Event::low_prio()

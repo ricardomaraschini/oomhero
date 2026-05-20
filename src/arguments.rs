@@ -1,6 +1,7 @@
 use super::errors::Error;
 use super::processes::CollectedData;
 use clap::Parser;
+use fasteval::Compiler;
 use fasteval::Evaler;
 use nix::sys::signal;
 use std::fmt;
@@ -109,29 +110,30 @@ pub enum CheckerResult {
 }
 
 // ThresholdsChecker is an entity capable of evaluting a CollectedData struct against a warning and
-// critical expressions.
+// critical expressions. Both expressions are kept compiled into this struct for faster matching.
 pub struct ThresholdsChecker {
-    warning_slab: fasteval::Slab,
-    critical_slab: fasteval::Slab,
-    warning: fasteval::parser::ExpressionI,
-    critical: fasteval::parser::ExpressionI,
+    slab: fasteval::Slab,
+    warning: fasteval::Instruction,
+    critical: fasteval::Instruction,
 }
 
 impl ThresholdsChecker {
     // new_from parses the provided warning and critical expressions and if they are valid returns
     // a new ThresholdsChecker object holding the "compiled" version of both expressions.
     pub fn new_from(warning: &str, critical: &str) -> Result<Self, Error> {
-        let parser = fasteval::Parser::new();
+        let mut slab = fasteval::Slab::new();
 
-        let mut warning_slab = fasteval::Slab::new();
-        let warning = parser.parse(warning, &mut warning_slab.ps)?;
-
-        let mut critical_slab = fasteval::Slab::new();
-        let critical = parser.parse(critical, &mut critical_slab.ps)?;
+        let warning = fasteval::Parser::new()
+            .parse(warning, &mut slab.ps)?
+            .from(&slab.ps)
+            .compile(&slab.ps, &mut slab.cs);
+        let critical = fasteval::Parser::new()
+            .parse(critical, &mut slab.ps)?
+            .from(&slab.ps)
+            .compile(&slab.ps, &mut slab.cs);
 
         Ok(Self {
-            warning_slab,
-            critical_slab,
+            slab,
             warning,
             critical,
         })
@@ -139,17 +141,13 @@ impl ThresholdsChecker {
 
     // against checks the thresholds expressions against the provided collected data.
     pub fn against(&self, cd: &mut CollectedData) -> Result<CheckerResult, Error> {
-        let expr = self.critical.from(&self.critical_slab.ps);
-        if expr.eval(&self.critical_slab, cd)? >= 1. {
+        if self.critical.eval(&self.slab, cd)? >= 1. {
             return Ok(CheckerResult::Critical);
         }
-
-        let expr = self.warning.from(&self.warning_slab.ps);
-        if expr.eval(&self.warning_slab, cd)? >= 1. {
-            Ok(CheckerResult::Warning)
-        } else {
-            Ok(CheckerResult::None)
+        if self.warning.eval(&self.slab, cd)? >= 1. {
+            return Ok(CheckerResult::Warning);
         }
+        Ok(CheckerResult::None)
     }
 }
 
@@ -195,10 +193,16 @@ mod tests {
 
         let mut cd = processes::CollectedData {
             memory_max: 100,
-            memory_current: 11,
+            memory_current: 9,
             ..Default::default()
         };
 
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::None);
+
+        cd.memory_current = 11;
         let result = check
             .against(&mut cd)
             .expect("failed to check against valid collect data");
