@@ -79,20 +79,7 @@ impl Flags {
     // thresholds_checker "compiles" both warning and critical expressions and return an entity
     // capable of being assessed against processes::CollectedData.
     pub fn thresholds_checker(&self) -> Result<ThresholdsChecker, Error> {
-        let parser = fasteval::Parser::new();
-
-        let mut warning_slab = fasteval::Slab::new();
-        let warning = parser.parse(&self.warning, &mut warning_slab.ps)?;
-
-        let mut critical_slab = fasteval::Slab::new();
-        let critical = parser.parse(&self.critical, &mut critical_slab.ps)?;
-
-        Ok(ThresholdsChecker {
-            warning_slab,
-            critical_slab,
-            warning,
-            critical,
-        })
+        ThresholdsChecker::new_from(&self.warning, &self.critical)
     }
 }
 
@@ -113,6 +100,14 @@ impl fmt::Display for Flags {
     }
 }
 
+// CheckerResult is the enum returned by a thresholds checker.
+#[derive(Debug, Clone, PartialEq)]
+pub enum CheckerResult {
+    Warning,
+    Critical,
+    None,
+}
+
 // ThresholdsChecker is an entity capable of evaluting a CollectedData struct against a warning and
 // critical expressions.
 pub struct ThresholdsChecker {
@@ -123,20 +118,38 @@ pub struct ThresholdsChecker {
 }
 
 impl ThresholdsChecker {
-    // against checks the thresholds expressions against the provided collected data. Returns a
-    // tuple of bool where .0 is warning and .1 is critical.
-    pub fn against(&self, cd: &mut CollectedData) -> Result<(bool, bool), Error> {
-        let warning = self
-            .warning
-            .from(&self.warning_slab.ps)
-            .eval(&self.warning_slab, cd)?;
+    // new_from parses the provided warning and critical expressions and if they are valid returns
+    // a new ThresholdsChecker object holding the "compiled" version of both expressions.
+    pub fn new_from(warning: &str, critical: &str) -> Result<Self, Error> {
+        let parser = fasteval::Parser::new();
 
-        let critical = self
-            .critical
-            .from(&self.critical_slab.ps)
-            .eval(&self.critical_slab, cd)?;
+        let mut warning_slab = fasteval::Slab::new();
+        let warning = parser.parse(warning, &mut warning_slab.ps)?;
 
-        Ok((warning >= 1., critical >= 1.))
+        let mut critical_slab = fasteval::Slab::new();
+        let critical = parser.parse(critical, &mut critical_slab.ps)?;
+
+        Ok(Self {
+            warning_slab,
+            critical_slab,
+            warning,
+            critical,
+        })
+    }
+
+    // against checks the thresholds expressions against the provided collected data.
+    pub fn against(&self, cd: &mut CollectedData) -> Result<CheckerResult, Error> {
+        let expr = self.critical.from(&self.critical_slab.ps);
+        if expr.eval(&self.critical_slab, cd)? >= 1. {
+            return Ok(CheckerResult::Critical);
+        }
+
+        let expr = self.warning.from(&self.warning_slab.ps);
+        if expr.eval(&self.warning_slab, cd)? >= 1. {
+            Ok(CheckerResult::Warning)
+        } else {
+            Ok(CheckerResult::None)
+        }
     }
 }
 
@@ -153,5 +166,108 @@ fn validate_expression(s: &str) -> Result<String, String> {
     match parser.parse(s, &mut slab.ps) {
         Ok(_) => Ok(s.to_owned()),
         Err(err) => Err(format!("invalid expression: {}", err)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::processes;
+
+    #[test]
+    fn new_thresholds_checker() {
+        assert_eq!(
+            super::ThresholdsChecker::new_from(&String::from("0"), &String::from("0"),).is_ok(),
+            true
+        );
+        assert_eq!(
+            super::ThresholdsChecker::new_from(&String::from(">"), &String::from("0"),).is_ok(),
+            false
+        );
+    }
+
+    #[test]
+    fn thresholds_checker_simple_evaluations() {
+        let check = super::ThresholdsChecker::new_from(
+            &String::from("memory_usage > 10"),
+            &String::from("memory_usage > 20"),
+        )
+        .expect("failed to create valid thresholds checker");
+
+        let mut cd = processes::CollectedData {
+            memory_max: 100,
+            memory_current: 11,
+            ..Default::default()
+        };
+
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::Warning);
+
+        cd.memory_current = 21;
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::Critical);
+
+        cd.memory_current = 9;
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::None);
+    }
+
+    #[test]
+    fn thresholds_checker_combined_evaluations() {
+        let check = super::ThresholdsChecker::new_from(
+            &String::from("memory_usage > 10 && memory_pressure_full_avg10 > 60"),
+            &String::from("memory_usage > 20 && memory_pressure_full_avg10 > 70"),
+        )
+        .expect("failed to create valid thresholds checker");
+
+        let mut cd = processes::CollectedData {
+            memory_max: 100,
+            memory_current: 0,
+            pressure: processes::Pressure {
+                memory: processes::PressureData {
+                    full: processes::PressureAverages {
+                        avg10: 0.,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::None);
+
+        cd.memory_current = 11;
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::None);
+
+        cd.pressure.memory.full.avg10 = 100.;
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::Warning);
+
+        cd.memory_current = 21;
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::Critical);
+
+        cd.memory_current = 0;
+        let result = check
+            .against(&mut cd)
+            .expect("failed to check against valid collect data");
+        assert_eq!(result, super::CheckerResult::None);
     }
 }
