@@ -168,7 +168,9 @@ impl Transmitter {
 
 impl fmt::Display for Event {
     fn fmt(&self, fp: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(fp, "pid:{} ", self.pid)?;
+        if self.pid > 0 {
+            write!(fp, "pid:{} ", self.pid)?;
+        }
         if !self.cmdline.is_empty() {
             write!(fp, "cmdline:{} ", self.cmdline)?;
         }
