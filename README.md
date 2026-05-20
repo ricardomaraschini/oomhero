@@ -103,7 +103,8 @@ cmdline) is not seen for 1 minute, its metrics will be removed.
 - Kubernetes cluster with Linux nodes (kernel 4.20+ for full PSI support)
 - Pod must have `shareProcessNamespace: true`
 - Container requires `SYS_PTRACE` capability to send signals
-- Both `--warning` and `--critical` expressions must be configured
+- Both `--warning` and `--critical` expressions have default values but
+  they should be be customized by the user.
 
 ## Installation
 

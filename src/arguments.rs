@@ -60,6 +60,7 @@ pub struct Flags {
 
     #[arg(
         long,
+        default_value = "memory_usage > 70",
         value_parser = validate_expression,
         help = "Expression whose evaluation causes a warning signal"
     )]
@@ -67,6 +68,7 @@ pub struct Flags {
 
     #[arg(
         long,
+        default_value = "memory_usage > 80",
         value_parser = validate_expression,
         help = "Expression whose evaluation causes a critical signal"
     )]
