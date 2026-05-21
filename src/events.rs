@@ -22,7 +22,7 @@ pub struct Event {
 
 // Priority determines how relevant an event on the system is. Receivers of such events should
 // choose how to deal with them.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub enum Priority {
     #[default]
     Low,

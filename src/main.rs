@@ -14,7 +14,6 @@ use signal_hook::consts::SIGINT;
 use signal_hook::consts::SIGTERM;
 use signal_hook::iterator::Signals;
 use std::env;
-use std::process;
 use std::sync;
 use std::thread;
 
@@ -31,13 +30,9 @@ fn main() {
         return;
     }
 
-    let thresholds_checker = match flags.thresholds_checker() {
-        Ok(checker) => checker,
-        Err(error) => {
-            error!("{}", error);
-            process::exit(1);
-        }
-    };
+    let thresholds_checker = flags
+        .thresholds_checker()
+        .expect("failed to parse warning/critical expressions");
 
     banner();
     info!("config: {}", &flags);
@@ -82,7 +77,7 @@ fn start_event_logger(rx: sync::mpsc::Receiver<events::Event>) {
     let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
     for event in rx {
         trace!("{:?}", &event);
-        if let events::Priority::High = event.priority {
+        if event.priority == events::Priority::High {
             last_messages.insert(event.pid, event.clone());
             warn!("{}", event);
             continue;
