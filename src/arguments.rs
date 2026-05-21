@@ -109,6 +109,17 @@ pub enum CheckerResult {
     None,
 }
 
+impl fmt::Display for CheckerResult {
+    fn fmt(&self, fp: &mut fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let as_string = match self {
+            CheckerResult::None => "none",
+            CheckerResult::Warning => "warning",
+            CheckerResult::Critical => "critical",
+        };
+        write!(fp, "{}", as_string)
+    }
+}
+
 // ThresholdsChecker is an entity capable of evaluting a CollectedData struct against a warning and
 // critical expressions. Both expressions are kept compiled into this struct for faster matching.
 pub struct ThresholdsChecker {

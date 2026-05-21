@@ -1,6 +1,8 @@
 use mockall::predicate;
 use nix::sys::signal;
 use oomhero::arguments;
+use oomhero::arguments::CheckerResult::Critical;
+use oomhero::arguments::CheckerResult::Warning;
 use oomhero::daemons;
 use oomhero::errors;
 use oomhero::events;
@@ -52,9 +54,9 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
     signals_sender
         .expect_send()
         .times(1)
-        .returning(move |sig, pid| {
-            assert_eq!(sig, signal::SIGKILL);
-            assert_eq!(pid, 2);
+        .returning(move |sev, process, _cd| {
+            assert_eq!(sev, &Critical);
+            assert_eq!(process.pid, 2);
             Ok(())
         });
 
@@ -68,10 +70,9 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(10))
-    .with_critical_signal(signal::SIGKILL)
     .with_cooldown_interval(time::Duration::from_secs(60));
     monitor.run(rx);
     Ok(())
@@ -144,9 +145,9 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
         .times(0);
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(|sig, pid| {
-        assert_eq!(sig, signal::SIGUSR1);
-        assert_eq!(pid, 2);
+    signals_sender.expect_send().returning(|sev, process, _cd| {
+        assert_eq!(sev, &Warning);
+        assert_eq!(process.pid, 2);
         Ok(())
     });
 
@@ -159,7 +160,7 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
     .with_cooldown_interval(time::Duration::from_mins(1));
@@ -220,9 +221,9 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
         });
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(|sig, pid| {
-        assert_eq!(sig, signal::SIGUSR2);
-        assert_eq!(pid, 2);
+    signals_sender.expect_send().returning(|sev, process, _cd| {
+        assert_eq!(sev, &Critical);
+        assert_eq!(process.pid, 2);
         Ok(())
     });
 
@@ -235,7 +236,7 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
     .with_cooldown_interval(time::Duration::from_mins(1));
@@ -299,7 +300,7 @@ fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
     .with_cooldown_interval(time::Duration::from_mins(1));
@@ -354,11 +355,13 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
         });
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(move |sig, pid| {
-        assert_eq!(sig, signal::SIGKILL);
-        assert_eq!(pid, 2);
-        Ok(())
-    });
+    signals_sender
+        .expect_send()
+        .returning(move |sev, process, _cd| {
+            assert_eq!(sev, &Critical);
+            assert_eq!(process.pid, 2);
+            Ok(())
+        });
 
     thread::spawn(move || {
         std::thread::sleep(time::Duration::from_millis(200));
@@ -369,10 +372,9 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
-    .with_critical_signal(signal::SIGKILL)
     .with_cooldown_interval(time::Duration::from_mins(1));
     monitor.run(rx);
     Ok(())
@@ -431,11 +433,13 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
         });
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(move |sig, pid| {
-        assert_eq!(sig, signal::SIGABRT);
-        assert_eq!(pid, 2);
-        Ok(())
-    });
+    signals_sender
+        .expect_send()
+        .returning(move |sev, process, _cd| {
+            assert_eq!(sev, &Critical);
+            assert_eq!(process.pid, 2);
+            Ok(())
+        });
 
     thread::spawn(move || {
         std::thread::sleep(time::Duration::from_millis(200));
@@ -446,10 +450,9 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
-    .with_critical_signal(signal::SIGABRT)
     .with_cooldown_interval(time::Duration::from_mins(1));
     monitor.run(rx);
     Ok(())
@@ -511,11 +514,13 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
         });
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(move |sig, pid| {
-        assert_eq!(sig, signal::SIGKILL);
-        assert_eq!(pid, 2);
-        Ok(())
-    });
+    signals_sender
+        .expect_send()
+        .returning(move |sev, process, _cd| {
+            assert_eq!(sev, &Critical);
+            assert_eq!(process.pid, 2);
+            Ok(())
+        });
 
     thread::spawn(move || {
         std::thread::sleep(time::Duration::from_millis(200));
@@ -526,10 +531,9 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
-    .with_critical_signal(signal::SIGKILL)
     .with_cooldown_interval(time::Duration::from_mins(1));
     monitor.run(rx);
     Ok(())
@@ -591,11 +595,13 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
         });
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(move |sig, pid| {
-        assert_eq!(sig, signal::SIGKILL);
-        assert_eq!(pid, 2);
-        Ok(())
-    });
+    signals_sender
+        .expect_send()
+        .returning(move |sev, process, _cd| {
+            assert_eq!(sev, &Critical);
+            assert_eq!(process.pid, 2);
+            Ok(())
+        });
 
     thread::spawn(move || {
         std::thread::sleep(time::Duration::from_millis(200));
@@ -606,11 +612,9 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
-    .with_critical_signal(signal::SIGKILL)
-    .with_warning_signal(signal::SIGUSR1)
     .with_cooldown_interval(time::Duration::from_mins(1));
     monitor.run(rx);
     Ok(())
@@ -663,11 +667,13 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
         });
 
     let mut signals_sender = signals::MockSender::new();
-    signals_sender.expect_send().returning(move |sig, pid| {
-        assert_eq!(sig, signal::SIGUSR1);
-        assert_eq!(pid, 2);
-        Ok(())
-    });
+    signals_sender
+        .expect_send()
+        .returning(move |sev, process, _cd| {
+            assert_eq!(sev, &Warning);
+            assert_eq!(process.pid, 2);
+            Ok(())
+        });
 
     thread::spawn(move || {
         std::thread::sleep(time::Duration::from_millis(200));
@@ -678,7 +684,7 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
     .with_cooldown_interval(time::Duration::from_mins(1));
@@ -760,7 +766,7 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
     .with_cooldown_interval(time::Duration::from_mins(1));
@@ -814,7 +820,7 @@ fn daemons_run_fail_collecting_process_data() -> Result<(), errors::Error> {
         events_sink,
         arguments.thresholds_checker().unwrap(),
         processes_explorer,
-        signals_sender,
+        &signals_sender,
     )
     .with_loop_interval(time::Duration::from_millis(50))
     .with_cooldown_interval(time::Duration::from_mins(1));
