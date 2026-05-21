@@ -46,13 +46,12 @@ fn main() {
     let tx = events::Transmitter::new(evt_transmitter);
     let syscgroups = system::SystemCGroups::default();
     let processes_explorer = processes::ProcFsReader::new(syscgroups);
-    let signal_sender = signals::SignalSender::default();
-    let monitor = daemons::Monitor::new(tx, thresholds_checker, processes_explorer, signal_sender)
+    let signal_sender = signals::UnixSignalSender::new(flags.warning_signal, flags.critical_signal);
+
+    daemons::Monitor::new(tx, thresholds_checker, processes_explorer, &signal_sender)
         .with_cooldown_interval(flags.cooldown_interval)
         .with_loop_interval(flags.loop_interval)
-        .with_warning_signal(flags.warning_signal)
-        .with_critical_signal(flags.critical_signal);
-    monitor.run(stop_receiver);
+        .run(stop_receiver);
 }
 
 // signal_handler installs a signal handler for interrupt and terminate. Once one of these signals

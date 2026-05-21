@@ -1,7 +1,8 @@
-use super::arguments;
+use super::arguments::CheckerResult;
 use super::arguments::CheckerResult::Critical;
 use super::arguments::CheckerResult::None;
 use super::arguments::CheckerResult::Warning;
+use super::arguments::ThresholdsChecker;
 use super::events;
 use super::metrics;
 use super::processes;
@@ -9,7 +10,6 @@ use super::signals;
 use log::info;
 use log::warn;
 use moka::sync::Cache;
-use nix::sys::signal;
 use std::process;
 use std::sync::mpsc;
 use std::thread;
@@ -19,7 +19,7 @@ use std::time;
 #[derive(Debug, Clone)]
 struct SignalRecord {
     when: time::Instant,
-    kind: signal::Signal,
+    severity: CheckerResult,
 }
 
 // Monitor implements a daemon that monitors processes memory utilization on a system. The monitor
@@ -29,28 +29,26 @@ struct SignalRecord {
 // something to be used unbounded. cooldown_interval_secs governs how often we can send the same
 // signal towards the same pid while last_signals keeps track of previously sent signals. We limit
 // the historic data to 1_000 different pids, we do not expect this to ever go beyond this.
-pub struct Monitor<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> {
-    signal_sender: U,
+pub struct Monitor<'a, T: processes::ProcessProvider, S: events::Sender> {
+    signal_sender: &'a dyn signals::Sender,
     sink: S,
-    thresholds: arguments::ThresholdsChecker,
+    thresholds: ThresholdsChecker,
     processes_discover: T,
     loop_interval: time::Duration,
     last_signals: Cache<i32, SignalRecord>,
-    warning_signal: signal::Signal,
-    critical_signal: signal::Signal,
     cooldown_interval: time::Duration,
     metrics_server: metrics::Server,
 }
 
-impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monitor<T, S, U> {
+impl<'a, T: processes::ProcessProvider, S: events::Sender> Monitor<'a, T, S> {
     // new returns a new cgroups monitor. Sink is used to send all events, warning and critical are
     // used to assess the memory usage while last_signals is used to keep track when was the last
     // time we signaled a process.
     pub fn new(
         sink: S,
-        thresholds: arguments::ThresholdsChecker,
+        thresholds: ThresholdsChecker,
         processes_discover: T,
-        signal_sender: U,
+        signal_sender: &'a dyn signals::Sender,
     ) -> Self {
         Monitor {
             signal_sender,
@@ -59,8 +57,6 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
             processes_discover,
             loop_interval: time::Duration::from_millis(100),
             last_signals: Cache::new(1_000),
-            warning_signal: signal::Signal::SIGUSR1,
-            critical_signal: signal::Signal::SIGUSR2,
             cooldown_interval: time::Duration::from_secs(30),
             metrics_server: metrics::Server::default(),
         }
@@ -76,19 +72,6 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
     // with_cooldown_interval sets the minimum time between sends of the same signal.
     pub fn with_cooldown_interval(mut self, cooldown_interval: time::Duration) -> Self {
         self.cooldown_interval = cooldown_interval;
-        self
-    }
-
-    // with_warning_signal sets the signal to be sent upon warning threshold cross.
-    pub fn with_warning_signal(mut self, warning_signal: signal::Signal) -> Self {
-        self.warning_signal = warning_signal;
-        self
-    }
-
-    // with_critical_signal sets the signal to be sent when a process crosses the critical
-    // watermark.
-    pub fn with_critical_signal(mut self, critical_signal: signal::Signal) -> Self {
-        self.critical_signal = critical_signal;
         self
     }
 
@@ -155,11 +138,8 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
                 }
 
                 match self.thresholds.against(&mut cd) {
-                    Ok(result) => match result {
-                        Critical => {
-                            self.send_signal(&process, self.critical_signal, &cd, "critical")
-                        }
-                        Warning => self.send_signal(&process, self.warning_signal, &cd, "warning"),
+                    Ok(severity) => match severity {
+                        Warning | Critical => self.send_signal(&process, severity, &cd),
                         None => self.sink.send(
                             events::Event::low_prio()
                                 .with_process_collected_data(&process, &cd)
@@ -196,12 +176,11 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
     fn send_signal(
         &self,
         process: &processes::Process,
-        sig: signal::Signal,
+        severity: CheckerResult,
         cd: &processes::CollectedData,
-        desc: &str,
     ) {
         if let Some(last_signal) = self.last_signals.get(&process.pid)
-            && last_signal.kind == sig
+            && last_signal.severity == severity
         {
             let elapsed = time::Instant::now() - last_signal.when;
             if elapsed < self.cooldown_interval {
@@ -209,11 +188,11 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
             }
         }
 
-        if let Err(err) = self.signal_sender.send(sig, process.pid) {
+        if let Err(err) = self.signal_sender.send(&severity, process, cd) {
             self.sink.send(
                 events::Event::high_prio()
                     .with_process_collected_data(process, cd)
-                    .with_message(format!("fail sending {desc} signal: {err}")),
+                    .with_message(format!("error sending {:?} signal: {err}", severity)),
             );
             return;
         }
@@ -222,14 +201,14 @@ impl<T: processes::ProcessProvider, S: events::Sender, U: signals::Sender> Monit
             process.pid,
             SignalRecord {
                 when: time::Instant::now(),
-                kind: sig,
+                severity: severity.clone(),
             },
         );
 
         self.sink.send(
             events::Event::high_prio()
                 .with_process_collected_data(process, cd)
-                .with_message(format!("{desc} signal sent successfully")),
+                .with_message(format!("{severity} signal sent successfully")),
         );
     }
 }
