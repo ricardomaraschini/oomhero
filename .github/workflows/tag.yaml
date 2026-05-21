@@ -28,7 +28,7 @@ jobs:
           exit 1
         fi
     - name: log in to the registry
-      uses: docker/login-action@9f4a8ea54ed9055d5f86c993e1f2ffa674f98344
+      uses: docker/login-action@4f5a161ff1b9dde732913c738afffb9afac67587
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
