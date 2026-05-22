@@ -16,7 +16,7 @@ jobs:
     - name: check out code
       uses: actions/checkout@v6
     - name: log in to the registry
-      uses: docker/login-action@4f5a161ff1b9dde732913c738afffb9afac67587
+      uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
