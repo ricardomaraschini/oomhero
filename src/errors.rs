@@ -26,6 +26,12 @@ pub enum Error {
     #[error(transparent)]
     FastEvalError(#[from] fasteval::error::Error),
 
+    #[error(transparent)]
+    SerdeYamlError(#[from] serde_yaml::Error),
+
+    #[error(transparent)]
+    UreqError(#[from] ureq::Error),
+
     #[error("{0}")]
     Message(String),
 }

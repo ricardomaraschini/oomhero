@@ -1,5 +1,6 @@
 use axum::extract::State;
 use axum::routing::get;
+use axum::routing::post;
 use axum::Json;
 use axum::Router;
 use log::info;
@@ -64,6 +65,7 @@ async fn main() {
         .route("/cpu", get(cpu_handler))
         .route("/mem", get(mem_handler))
         .route("/io", get(io_handler))
+        .route("/notification", post(notification_handler))
         .route("/stats", get(stats_handler))
         .with_state(state);
 
@@ -111,6 +113,15 @@ async fn io_handler(State(state): State<AppState>) -> &'static str {
     state.io_tx.send(*next).expect("failed sending message");
     *next = !*next;
     "io ack"
+}
+
+// notification_handler register an url request as a signal received. It is useful for testing
+// oomhero's http notification feature.
+async fn notification_handler(State(state): State<AppState>) -> &'static str {
+    info!("notification signal received through http");
+    let mut signals_received = state.signals_received.lock().unwrap();
+    *signals_received += 1;
+    "notification ack"
 }
 
 // cpu_handler flips the cpu consumption on and off. One call turns it on, the next turns it off.
