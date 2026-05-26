@@ -1,14 +1,16 @@
 use futures_util::StreamExt;
 use log::info;
 use nix::sys::stat;
+use oomhero::http_signals_sender;
+use podman_api::Podman;
 use podman_api::models::LinuxBlockIo;
 use podman_api::models::LinuxCpu;
 use podman_api::models::LinuxMemory;
 use podman_api::models::LinuxResources;
 use podman_api::models::LinuxThrottleDevice;
+use podman_api::models::NamedVolume;
 use podman_api::models::PortMapping;
 use podman_api::opts;
-use podman_api::Podman;
 use serde::Deserialize;
 use std::env;
 use std::fs;
@@ -200,7 +202,11 @@ async fn io_controller_is_enabled() -> bool {
 // create_test_pod will create a pod with three containers, one with the pause image, one with the
 // test image (see tests/image directory) and one with the oomhero. The arguments to the oomhero
 // containers are customizable through the passed in vector.
-async fn create_test_pod(name: String, arguments: &Vec<&str>) {
+async fn create_test_pod(
+    name: String,
+    arguments: &Vec<&str>,
+    notification_config: Option<http_signals_sender::HttpNotificationConfig>,
+) {
     let client = podman_client();
 
     // port_mappings is a list of port mappings we expose in the pod. the port 9000 is the port
@@ -223,8 +229,43 @@ async fn create_test_pod(name: String, arguments: &Vec<&str>) {
         },
     ];
 
+    let mut volumes = vec![];
+    if let Some(config) = notification_config {
+        let content =
+            serde_yaml::to_string(&config).expect("failed to encode http notification config");
+
+        client
+            .volumes()
+            .create(
+                &opts::VolumeCreateOpts::builder()
+                    .name("oomhero_config")
+                    .build(),
+            )
+            .await
+            .expect("failed to create oomhero_config volume");
+
+        let volume = client.volumes().get("oomhero_config");
+
+        let info = volume
+            .inspect()
+            .await
+            .expect("failed to inpect volume we just created");
+
+        let mut dst = info.mountpoint.clone();
+        dst.push_str("/config.yaml");
+        fs::write(dst, content.as_bytes()).expect("failed to write config to file");
+
+        volumes.push(NamedVolume {
+            dest: Some(String::from("/etc/oomhero")),
+            is_anonymous: Some(false),
+            name: Some(String::from("oomhero_config")),
+            options: None,
+        })
+    }
+
     let pod_create_opts = &opts::PodCreateOpts::builder()
         .name(name.clone())
+        .volumes(volumes)
         .portmappings(port_mappings)
         .shared_namespaces(vec!["ipc", "net", "uts", "pid"])
         .infra_image("registry.k8s.io/pause:latest")
@@ -292,17 +333,44 @@ async fn attempt_test_pod_removal(name: String) {
     _ = pod.remove().await;
 }
 
-// end_2_end test is very simple and needs to be improved. So far: it spawns a pod with both
-// oomhero and a test workload application (source code under tests/workload). Both containers
-// have memory and cpu restrictions. Once everything the pod is up we do a request to the
-// workload appliation (/mem) so it immediately start to eat ram up, we wait until the
+// attempt_test_volume_removal attempst to delete the test volume pointed by the provided name.
+// Failures are ignored.
+async fn attempt_test_volume_removal(name: String) {
+    let volume = podman_client().volumes().get(name);
+    _ = volume.delete().await;
+}
+
+// wait_for_signals polls the /stats endpoint until the expected number of signals have been
+// received.
+async fn wait_for_signals(nr: i32) {
+    for _ in 0..120 {
+        let body = ureq::get("http://localhost:9999/stats")
+            .call()
+            .expect("failed to issue stats request")
+            .body_mut()
+            .read_to_string()
+            .expect("failed to read issue stats request body");
+
+        let stats: Stats = serde_json::from_str(&body).expect("failed to parse stats request body");
+
+        if stats.signals_received == nr {
+            info!("received signal nr {} as expected", nr);
+            return;
+        }
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+    }
+
+    panic!("timeout waiting for signal nr {}", nr);
+}
+
+// test_basic_functionality test is very simple and needs to be improved. So far: it spawns a pod
+// with both oomhero and a test workload application (source code under tests/workload). Both
+// containers have memory and cpu restrictions. Once everything the pod is up we do a request to
+// the workload appliation (/mem) so it immediately start to eat ram up, we wait until the
 // application receives the signal. We repeat the same operation for cpu (/cpu). Nothing fancy
 // here but it gets the basic functionality tested.
-#[tokio::test]
-async fn end_2_end() {
-    let environment = env_logger::Env::new().default_filter_or("info");
-    env_logger::Builder::from_env(environment).init();
-
+async fn test_basic_functionality() {
     // just in case we had a pod running from a failed previous attempt.
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
 
@@ -323,6 +391,7 @@ async fn end_2_end() {
             "--warning=memory_usage > 80 || cpu_pressure_full_avg10 > 80 || io_pressure_full_avg10 > 50",
             "--critical=memory_usage > 90 || cpu_pressure_full_avg10 > 90 || io_pressure_full_avg10 > 80",
         ],
+        None,
     )
     .await;
 
@@ -377,26 +446,51 @@ async fn end_2_end() {
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
 }
 
-// wait_for_signals polls the /stats endpoint until the expected number of signals have been
-// received.
-async fn wait_for_signals(nr: i32) {
-    for _ in 0..120 {
-        let body = ureq::get("http://localhost:9999/stats")
-            .call()
-            .expect("failed to issue stats request")
-            .body_mut()
-            .read_to_string()
-            .expect("failed to read issue stats request body");
+// test_notify_command checks that the notify command feature is working as expected. we start the
+// containers and instruct oomhero to run the /usr/bin/touch command instead of sending the signal.
+// we then wait for the file to appear in the oomhero pod to consider the test as passed.
+async fn test_notify_command() {
+    attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
+    attempt_test_volume_removal(String::from("oomhero_config")).await;
 
-        let stats: Stats = serde_json::from_str(&body).expect("failed to parse stats request body");
+    info!("creating test pod");
+    create_test_pod(
+        String::from("oomhero_test_pod"),
+        &vec![
+            "--http-file-path=/etc/oomhero/config.yaml",
+            "--warning=memory_usage > 60",
+            "--critical=memory_usage > 90",
+        ],
+        Some(http_signals_sender::HttpNotificationConfig {
+            url: String::from("http://localhost:9999/notification"),
+            headers: vec![],
+        }),
+    )
+    .await;
 
-        if stats.signals_received == nr {
-            info!("received signal nr {} as expected", nr);
-            return;
-        }
+    _ = tokio::spawn(follow_container_logs("workload"));
+    _ = tokio::spawn(follow_container_logs("oomhero"));
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
-    }
+    info!("informing the test workload to start eating memory");
+    ureq::get("http://localhost:9999/mem")
+        .call()
+        .expect("failed to ask for cpu burst");
 
-    panic!("timeout waiting for signal nr {}", nr);
+    info!("waiting for the test workload to receive the signal");
+    wait_for_signals(1).await;
+    info!("test workload informs that the io signal has been received");
+
+    attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
+    attempt_test_volume_removal(String::from("oomhero_config")).await;
+}
+
+// end_2_end is the entry point for the end to end tests. it calls one by one. nothing to see here
+// other than the ordering. the logger is started on this function.
+#[tokio::test]
+async fn end_2_end() {
+    let environment = env_logger::Env::new().default_filter_or("info");
+    env_logger::Builder::from_env(environment).init();
+
+    test_basic_functionality().await;
+    test_notify_command().await;
 }

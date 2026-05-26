@@ -3,7 +3,9 @@ use super::processes::CollectedData;
 use clap::Parser;
 use fasteval::Compiler;
 use fasteval::Evaler;
+use log::info;
 use nix::sys::signal;
+use serde::Serialize;
 use std::fmt;
 use std::time;
 
@@ -45,6 +47,7 @@ pub struct Flags {
     #[arg(
         long,
         default_value = "SIGUSR1",
+        conflicts_with = "http_file_path",
         help = "Signal to be send when a process crosses the warning watermark"
     )]
     pub warning_signal: signal::Signal,
@@ -52,6 +55,7 @@ pub struct Flags {
     #[arg(
         long,
         default_value = "SIGUSR2",
+        conflicts_with = "http_file_path",
         help = "Signal to be send when a process crosses the critical watermark"
     )]
     pub critical_signal: signal::Signal,
@@ -74,6 +78,24 @@ pub struct Flags {
         help = "Expression whose evaluation causes a critical signal"
     )]
     pub critical: String,
+
+    #[arg(long, help = "Path to a http file to be used for notifications")]
+    pub http_file_path: Option<String>,
+}
+
+impl Default for Flags {
+    fn default() -> Self {
+        Self {
+            loop_interval: time::Duration::from_millis(100),
+            cooldown_interval: time::Duration::from_secs(30),
+            warning_signal: signal::SIGUSR1,
+            critical_signal: signal::SIGUSR2,
+            version: false,
+            warning: String::from("memory_usage > 70"),
+            critical: String::from("memory_usage > 80"),
+            http_file_path: None,
+        }
+    }
 }
 
 impl Flags {
@@ -82,27 +104,25 @@ impl Flags {
     pub fn thresholds_checker(&self) -> Result<ThresholdsChecker, Error> {
         ThresholdsChecker::new_from(&self.warning, &self.critical)
     }
-}
 
-impl fmt::Display for Flags {
-    fn fmt(&self, fp: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(fp, "loop:{:?} ", self.loop_interval)?;
-        write!(fp, "cooldown:{:?} ", self.cooldown_interval)?;
-        write!(
-            fp,
-            "signals:{:?},{:?} ",
-            self.warning_signal, self.critical_signal
-        )?;
-        write!(
-            fp,
-            "warning:'{}', critical:'{}'",
-            self.warning, self.critical
-        )
+    // dump_to_log dumps the flags to the log using info!() statements. Shows only the active
+    // configuration.
+    pub fn dump_to_log(&self) {
+        info!("cooldown_interval: {:?}", self.cooldown_interval);
+        info!("loop_interval:     {:?}", self.loop_interval);
+        info!("warning:           {:?}", self.warning);
+        info!("critical:          {:?}", self.critical);
+        if let Some(path) = &self.http_file_path {
+            info!("http_file_path:    {:?}", path);
+            return;
+        }
+        info!("warning_signal:    {:?}", self.warning_signal);
+        info!("critical_signal    {:?}", self.critical_signal);
     }
 }
 
 // CheckerResult is the enum returned by a thresholds checker.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub enum CheckerResult {
     Warning,
     Critical,

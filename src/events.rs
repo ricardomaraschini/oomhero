@@ -1,6 +1,7 @@
 use super::processes;
 use log::warn;
 use mockall::automock;
+use serde::Serialize;
 use std::cmp::Ordering;
 use std::fmt;
 use std::sync::mpsc;
@@ -8,7 +9,7 @@ use std::sync::mpsc;
 // Event is a struct used to represent an event on the system. Events are more usually than not
 // related to a pid. For example: upon reading the memory usage for pid X an event may be sent
 // with the following format: Event{pid: X, message: "permission denied"}.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize)]
 pub struct Event {
     pub pid: i32,
     pub message: String,
@@ -22,7 +23,7 @@ pub struct Event {
 
 // Priority determines how relevant an event on the system is. Receivers of such events should
 // choose how to deal with them.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
 pub enum Priority {
     #[default]
     Low,

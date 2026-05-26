@@ -1,6 +1,7 @@
 use super::errors::Error;
 use super::system;
 use mockall::automock;
+use serde::Serialize;
 use std::fs;
 use std::io;
 use std::io::BufRead;
@@ -9,7 +10,7 @@ use std::str;
 
 // Pressure gathers all the pressure data we read for each single process. We collect pressure
 // for memory, io and cpu.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct Pressure {
     pub memory: PressureData,
     pub io: PressureData,
@@ -47,7 +48,7 @@ impl PartialEq for Pressure {
 // PressureData keeps track of the pressure as reported by kernel psi. For further information
 // see https://docs.kernel.org/accounting/psi.html. Content of this property is read directly
 // from the kernel {cpu,io,memory}.pressure file.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct PressureData {
     pub some: PressureAverages,
     pub full: PressureAverages,
@@ -80,7 +81,7 @@ impl PartialEq for PressureData {
 
 // PressureAverages keeps the averages for 10, 60 and 300 data as present in the kernel psi file.
 // The total, also present in the file, is also kept here.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct PressureAverages {
     pub avg10: f32,
     pub avg60: f32,
@@ -116,7 +117,7 @@ impl PartialEq for PressureAverages {
 
 // CollectedData holds the collected data for a process. Here, other than the pressure information
 // we also keep track of the process memory usage (%) and the oom_score.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct CollectedData {
     pub memory_max: u64,
     pub memory_current: u64,
@@ -160,7 +161,7 @@ impl fasteval::EvalNamespace for CollectedData {
 }
 
 // Process holds information about a specific process running on the system.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize)]
 pub struct Process {
     pub pid: i32,
     pub cmdline: String,

@@ -24,6 +24,7 @@ the OOMKiller terminates your application.
   memory, OOM score, and pressure metrics
 - **Signal-based notifications**: Sends customizable Unix signals (default:
   `SIGUSR1` for warning, `SIGUSR2` for critical)
+- **HTTP notifications**: Send alerts via HTTP POST requests instead of Unix signals
 - **Cooldown periods**: Prevents signal spam with configurable intervals
   between notifications
 - **Low overhead**: Minimal resource footprint (typically 1m CPU, 32Mi memory)
@@ -200,6 +201,57 @@ oomhero \
   --critical-signal SIGTERM
 ```
 
+### HTTP Notifications
+
+```bash
+oomhero \
+  --warning "memory_usage > 75" \
+  --critical "memory_usage > 90" \
+  --http-file-path /etc/oomhero/config.yaml
+```
+
+**Config file format** (`config.yaml`):
+```yaml
+url: https://hooks.example.com/alerts
+headers:
+  - name: Authorization
+    value: Bearer token123
+  - name: Content-Type
+    value: application/json
+```
+
+**HTTP request body**:
+```json
+{
+  "severity": "Warning",
+  "process": {
+    "pid": 1234,
+    "cmdline": "/usr/bin/myapp"
+  },
+  "collected_data": {
+    "memory_max": 536870912,
+    "memory_current": 421527552,
+    "memory_usage": 78.5,
+    "oom_score": 250,
+    "oom_score_adj": 0,
+    "pressure": {
+      "memory": {
+        "some": {"avg10": 5.2, "avg60": 3.1, "avg300": 2.8, "total": 1500000},
+        "full": {"avg10": 0.0, "avg60": 0.0, "avg300": 0.0, "total": 0}
+      },
+      "io": {
+        "some": {"avg10": 0.0, "avg60": 0.0, "avg300": 0.0, "total": 0},
+        "full": {"avg10": 0.0, "avg60": 0.0, "avg300": 0.0, "total": 0}
+      },
+      "cpu": {
+        "some": {"avg10": 0.0, "avg60": 0.0, "avg300": 0.0, "total": 0},
+        "full": {"avg10": 0.0, "avg60": 0.0, "avg300": 0.0, "total": 0}
+      }
+    }
+  }
+}
+```
+
 ## Configuration Options
 
 | Option | Description | Default |
@@ -210,6 +262,7 @@ oomhero \
 | `--cooldown-interval` | Minimum time between repeated signals | 30s |
 | `--warning-signal` | Signal sent at warning threshold | SIGUSR1 |
 | `--critical-signal` | Signal sent at critical threshold | SIGUSR2 |
+| `--http-file-path` | Path to HTTP notification config (conflicts with signal options) | (none) |
 | `--version` | Display version information | false |
 
 **Note**: Both `--warning` and `--critical` expressions must be provided for

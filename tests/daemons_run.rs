@@ -1,5 +1,4 @@
 use mockall::predicate;
-use nix::sys::signal;
 use oomhero::arguments;
 use oomhero::arguments::CheckerResult::Critical;
 use oomhero::arguments::CheckerResult::Warning;
@@ -24,10 +23,7 @@ fn daemons_run_processes_cooldown_enforcement() -> Result<(), errors::Error> {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -96,10 +92,7 @@ fn daemons_run_processes_exclusion() -> Result<(), errors::Error> {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -184,10 +177,7 @@ fn daemons_run_processes_with_cpu_pressure_critical() -> Result<(), errors::Erro
         warning: String::from("cpu_pressure_some_avg10 > 10"),
         critical: String::from("cpu_pressure_some_avg10 > 20"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -258,10 +248,7 @@ fn daemons_run_processes_with_critical_but_only_pressure_thresholds() -> Result<
         warning: String::from("memory_pressure_some_avg10 > 70"),
         critical: String::from("memory_pressure_some_avg10 > 90"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -324,10 +311,7 @@ fn daemons_run_processes_with_critical() -> Result<(), errors::Error> {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -396,10 +380,7 @@ fn daemons_run_processes_with_io_pressure_critical() -> Result<(), errors::Error
         warning: String::from("io_pressure_full_avg10 > 10"),
         critical: String::from("io_pressure_full_avg10 > 20"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -474,10 +455,7 @@ fn daemons_run_processes_with_memory_pressure_critical() -> Result<(), errors::E
         warning: String::from("memory_pressure_full_avg10 > 10"),
         critical: String::from("memory_pressure_full_avg10 > 20"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -555,10 +533,7 @@ fn daemons_run_processes_with_mixed_thresholds_critical_precedence() -> Result<(
         warning: String::from("memory_usage > 70 || memory_pressure_some_avg10 > 10"),
         critical: String::from("memory_usage > 90 || memory_pressure_some_avg10 > 20"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -636,10 +611,7 @@ fn daemons_run_processes_with_warning() -> Result<(), errors::Error> {
         warning: String::from("1 > 0"),
         critical: String::from("memory_usage > 90"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
 
     let mut processes_explorer = processes::MockProcessProvider::new();
@@ -705,11 +677,9 @@ fn daemons_run_processes_within_limits() -> Result<(), errors::Error> {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
+
     let mut processes_explorer = processes::MockProcessProvider::new();
 
     processes_explorer.expect_list().returning(|| {
@@ -790,11 +760,9 @@ fn daemons_run_fail_collecting_process_data() -> Result<(), errors::Error> {
         warning: String::from("memory_usage > 70"),
         critical: String::from("memory_usage > 90"),
         loop_interval: time::Duration::from_secs(1),
-        cooldown_interval: time::Duration::from_secs(30),
-        warning_signal: signal::SIGUSR1,
-        critical_signal: signal::SIGUSR2,
-        version: false,
+        ..Default::default()
     };
+
     let mut processes_explorer = processes::MockProcessProvider::new();
 
     processes_explorer.expect_list().returning(|| {

@@ -188,6 +188,14 @@ impl<'a, T: processes::ProcessProvider, S: events::Sender> Monitor<'a, T, S> {
             }
         }
 
+        self.last_signals.insert(
+            process.pid,
+            SignalRecord {
+                when: time::Instant::now(),
+                severity: severity.clone(),
+            },
+        );
+
         if let Err(err) = self.signal_sender.send(&severity, process, cd) {
             self.sink.send(
                 events::Event::high_prio()
@@ -196,14 +204,6 @@ impl<'a, T: processes::ProcessProvider, S: events::Sender> Monitor<'a, T, S> {
             );
             return;
         }
-
-        self.last_signals.insert(
-            process.pid,
-            SignalRecord {
-                when: time::Instant::now(),
-                severity: severity.clone(),
-            },
-        );
 
         self.sink.send(
             events::Event::high_prio()

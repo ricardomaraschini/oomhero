@@ -35,7 +35,7 @@ fn main() {
         .expect("failed to parse warning/critical expressions");
 
     banner();
-    info!("config: {}", &flags);
+    flags.dump_to_log();
 
     let (stop_transmitter, stop_receiver) = sync::mpsc::sync_channel::<bool>(0);
     thread::spawn(move || signal_handler(stop_transmitter));
@@ -46,7 +46,8 @@ fn main() {
     let tx = events::Transmitter::new(evt_transmitter);
     let syscgroups = system::SystemCGroups::default();
     let processes_explorer = processes::ProcFsReader::new(syscgroups);
-    let signal_sender = signals::UnixSignalSender::new(flags.warning_signal, flags.critical_signal);
+    let signal_sender =
+        signals::SignalSenders::new(&flags).expect("failed to create signal sender");
 
     daemons::Monitor::new(tx, thresholds_checker, processes_explorer, &signal_sender)
         .with_cooldown_interval(flags.cooldown_interval)
