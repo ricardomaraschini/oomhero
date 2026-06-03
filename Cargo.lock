@@ -1447,7 +1447,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "oomhero"
-version = "3.0.3"
+version = "3.0.4"
 dependencies = [
  "clap",
  "duration-str",
@@ -1466,6 +1466,7 @@ dependencies = [
  "serde",
  "serde_json",
  "signal-hook",
+ "tar",
  "thiserror 2.0.18",
  "tokio",
  "uzers",
@@ -2252,9 +2253,9 @@ checksum = "7b2093cf4c8eb1e67749a6762251bc9cd836b6fc171623bd0a9d324d37af2417"
 
 [[package]]
 name = "tar"
-version = "0.4.45"
+version = "0.4.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22692a6476a21fa75fdfc11d452fda482af402c008cdbaf3476414e122040973"
+checksum = "3f6221d9a6003c78398e3b239969f352578258df48c8eb051caadae0015bc840"
 dependencies = [
  "filetime",
  "libc",
