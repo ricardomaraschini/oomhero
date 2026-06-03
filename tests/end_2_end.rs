@@ -1,7 +1,6 @@
 use futures_util::StreamExt;
 use log::info;
 use nix::sys::stat;
-use podman_api::Podman;
 use podman_api::models::LinuxBlockIo;
 use podman_api::models::LinuxCpu;
 use podman_api::models::LinuxMemory;
@@ -9,6 +8,7 @@ use podman_api::models::LinuxResources;
 use podman_api::models::LinuxThrottleDevice;
 use podman_api::models::PortMapping;
 use podman_api::opts;
+use podman_api::Podman;
 use serde::Deserialize;
 use std::env;
 use std::fs;
@@ -334,16 +334,13 @@ async fn end_2_end() {
     // as the container is restricted to 10% of one CPU the pressure will start to grow, we
     // just need to monitor if it will receive the signal.
     info!("informing the test workload to start eating cpu");
-    let client = reqwest::Client::new();
-    client
-        .get("http://localhost:9999/cpu")
-        .send()
-        .await
-        .expect("failed to send /cpu request");
+    ureq::get("http://localhost:9999/cpu")
+        .call()
+        .expect("failed to ask for cpu burst");
 
     // wait for the signal to be sent by oomhero to the workload application.
     info!("waiting for the test workload to receive the first signal (cpu pressure)");
-    wait_for_signals(&client, 1).await;
+    wait_for_signals(1).await;
     info!("test workload informs that the cpu signal has been received");
 
     // we just wait a little bit before starting up the next test, memory consumption.
@@ -351,14 +348,12 @@ async fn end_2_end() {
 
     // we now rinse and repeat but this time assessing memory consumption.
     info!("informing the test workload to start eating memory");
-    client
-        .get("http://localhost:9999/mem")
-        .send()
-        .await
-        .expect("failed to send /mem request");
+    ureq::get("http://localhost:9999/mem")
+        .call()
+        .expect("failed to ask for mem burst");
 
     info!("waiting for the test workload to receive the second signal (mem usage)");
-    wait_for_signals(&client, 2).await;
+    wait_for_signals(2).await;
     info!("test workload informs that the memory signal has been received");
 
     if !io_controller_is_enabled().await {
@@ -371,14 +366,12 @@ async fn end_2_end() {
 
     // we now rinse and repeat but this time assessing memory consumption.
     info!("informing the test workload to start doing io");
-    client
-        .get("http://localhost:9999/io")
-        .send()
-        .await
-        .expect("failed to send /io request");
+    ureq::get("http://localhost:9999/io")
+        .call()
+        .expect("failed to ask for io burst");
 
     info!("waiting for the test workload to receive the third signal (io usage)");
-    wait_for_signals(&client, 3).await;
+    wait_for_signals(3).await;
     info!("test workload informs that the io signal has been received");
 
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
@@ -386,16 +379,16 @@ async fn end_2_end() {
 
 // wait_for_signals polls the /stats endpoint until the expected number of signals have been
 // received.
-async fn wait_for_signals(client: &reqwest::Client, nr: i32) {
+async fn wait_for_signals(nr: i32) {
     for _ in 0..120 {
-        let stats: Stats = client
-            .get("http://localhost:9999/stats")
-            .send()
-            .await
-            .expect("failed to get stats")
-            .json()
-            .await
-            .expect("failed to parse stats");
+        let body = ureq::get("http://localhost:9999/stats")
+            .call()
+            .expect("failed to issue stats request")
+            .body_mut()
+            .read_to_string()
+            .expect("failed to read issue stats request body");
+
+        let stats: Stats = serde_json::from_str(&body).expect("failed to parse stats request body");
 
         if stats.signals_received == nr {
             info!("received signal nr {} as expected", nr);
