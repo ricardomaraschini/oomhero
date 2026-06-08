@@ -20,6 +20,7 @@ use std::time;
 struct SignalRecord {
     when: time::Instant,
     severity: CheckerResult,
+    success: bool,
 }
 
 // Monitor implements a daemon that monitors processes memory utilization on a system. The monitor
@@ -182,19 +183,25 @@ impl<'a, T: processes::ProcessProvider, S: events::Sender> Monitor<'a, T, S> {
         if let Some(last_signal) = self.last_signals.get(&process.pid)
             && last_signal.severity == severity
         {
+            // we avoid signaling multiple times during the cooldown_interval. we use a different
+            // value for the cooldown_interval if we failed to notity the last time.
             let elapsed = time::Instant::now() - last_signal.when;
-            if elapsed < self.cooldown_interval {
+            let mut interval = self.cooldown_interval;
+            if !last_signal.success {
+                interval = time::Duration::from_secs(1);
+            }
+            if elapsed < interval {
                 return;
             }
         }
 
-        self.last_signals.insert(
-            process.pid,
-            SignalRecord {
-                when: time::Instant::now(),
-                severity: severity.clone(),
-            },
-        );
+        // we assume we are going to be able to send the signal so success is true. if we fail then
+        // we adjust the value accordingly.
+        let mut record = SignalRecord {
+            when: time::Instant::now(),
+            severity: severity.clone(),
+            success: true,
+        };
 
         if let Err(err) = self.signal_sender.send(&severity, process, cd) {
             self.sink.send(
@@ -202,8 +209,12 @@ impl<'a, T: processes::ProcessProvider, S: events::Sender> Monitor<'a, T, S> {
                     .with_process_collected_data(process, cd)
                     .with_message(format!("error sending {:?} signal: {err}", severity)),
             );
+            record.success = false;
+            self.last_signals.insert(process.pid, record);
             return;
         }
+
+        self.last_signals.insert(process.pid, record);
 
         self.sink.send(
             events::Event::high_prio()
