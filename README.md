@@ -265,8 +265,12 @@ headers:
 | `--http-file-path` | Path to HTTP notification config (conflicts with signal options) | (none) |
 | `--version` | Display version information | false |
 
-**Note**: Both `--warning` and `--critical` expressions must be provided for
-OOMHero to run.
+> [!IMPORTANT]
+> Both `--warning` and `--critical` expressions must be provided for OOMHero to
+> run. HTTP notifications are sent synchronously. To prevent slow webhooks from
+> stalling the process monitoring loop, a 3-second timeout is applied to each
+> request. If a notification fails or times out, OOMHero will log the error and
+> continue monitoring other processes.
 
 ## Important Considerations
 

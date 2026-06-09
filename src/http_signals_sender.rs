@@ -61,7 +61,12 @@ impl signals::Sender for HttpSignalSender {
             collected_data: cd.clone(),
         };
 
-        let mut builder = ureq::post(&self.config.url);
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(std::time::Duration::from_secs(3)))
+            .build()
+            .into();
+
+        let mut builder = agent.post(&self.config.url);
         for header in &self.config.headers {
             builder = builder.header(&header.name, &header.value);
         }
