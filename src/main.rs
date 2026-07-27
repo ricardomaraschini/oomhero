@@ -76,7 +76,7 @@ fn signal_handler(notifier: sync::mpsc::SyncSender<bool>) {
 fn start_event_logger(rx: sync::mpsc::Receiver<events::Event>) {
     let last_messages: Cache<i32, events::Event> = Cache::new(1_000);
     for event in rx {
-        trace!("{:?}", &event);
+        trace!("{:?}", event);
         if event.priority == events::Priority::High {
             last_messages.insert(event.pid, event.clone());
             warn!("{}", event);
