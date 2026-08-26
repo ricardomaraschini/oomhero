@@ -8,15 +8,11 @@ use serde::Serialize;
 use signal_hook::consts::SIGUSR1;
 use signal_hook::consts::SIGUSR2;
 use signal_hook::iterator::Signals;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::Write;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread;
 use std::time;
-use tempfile::tempfile;
 
 #[derive(Clone)]
 struct AppState {
@@ -24,8 +20,6 @@ struct AppState {
     cpu_next: Arc<Mutex<bool>>,
     mem_tx: mpsc::SyncSender<bool>,
     mem_next: Arc<Mutex<bool>>,
-    io_tx: mpsc::SyncSender<bool>,
-    io_next: Arc<Mutex<bool>>,
     signals_received: Arc<Mutex<i32>>,
 }
 
@@ -45,16 +39,11 @@ async fn main() {
     let (mem_tx, mem_rx) = mpsc::sync_channel::<bool>(1);
     thread::spawn(move || mem_usage(mem_rx));
 
-    let (io_tx, io_rx) = mpsc::sync_channel::<bool>(1);
-    thread::spawn(move || io_usage(io_rx));
-
     let state = AppState {
         cpu_tx: cpu_tx.clone(),
         cpu_next: Arc::new(Mutex::new(true)),
         mem_tx: mem_tx.clone(),
         mem_next: Arc::new(Mutex::new(true)),
-        io_tx: io_tx.clone(),
-        io_next: Arc::new(Mutex::new(true)),
         signals_received: Arc::new(Mutex::new(0)),
     };
 
@@ -64,7 +53,6 @@ async fn main() {
     let router = Router::new()
         .route("/cpu", get(cpu_handler))
         .route("/mem", get(mem_handler))
-        .route("/io", get(io_handler))
         .route("/notification", post(notification_handler))
         .route("/stats", get(stats_handler))
         .with_state(state);
@@ -73,6 +61,7 @@ async fn main() {
         .await
         .expect("failed to start listening");
 
+    info!("workload listening");
     axum::serve(listener, router)
         .await
         .expect("failed to start serving http endpoints");
@@ -104,15 +93,6 @@ async fn stats_handler(State(state): State<AppState>) -> Json<Stats> {
     Json(Stats {
         signals_received: *state.signals_received.lock().unwrap(),
     })
-}
-
-// io_handler flips the io consumption on and off. One call turns it on, the next turns it off.
-async fn io_handler(State(state): State<AppState>) -> &'static str {
-    info!("io switch pressed");
-    let mut next = state.io_next.lock().unwrap();
-    state.io_tx.send(*next).expect("failed sending message");
-    *next = !*next;
-    "io ack"
 }
 
 // notification_handler register an url request as a signal received. It is useful for testing
@@ -162,60 +142,6 @@ fn mem_usage(switch: mpsc::Receiver<bool>) {
 
         previous = consume;
         thread::sleep(delay);
-    }
-}
-
-// io_usage creates io activity when true is received on the channel. False causes it to stop.
-// This function increases the amount of IOPs done each 10 seconds as the average is taking out
-// of the 10 seconds. The values presented below are based on the test limit (100iops).
-fn io_usage(switch: mpsc::Receiver<bool>) {
-    let mut fp = tempfile().expect("failed to create temp file");
-    let mut previous = false;
-    let data = vec![0u8; 4096];
-    let mut iterations = 0;
-    let sleep_time = time::Duration::from_millis(100);
-
-    // the batch size increases as the amount of iterations increases. this is useful to get
-    // a constant and growing number of iops. we want to avoid the scenario 0% to 100% io
-    // pressure so as we iterate so grows the batch of writes we do.
-    let batch_size = |iterations: u128| match iterations / sleep_time.as_millis() {
-        0 => 10,
-        1 => 20,
-        2 => 30,
-        3 => 40,
-        4 => 50,
-        5 => 60,
-        6 => 70,
-        _ => 100,
-    };
-
-    // write_to_temp_file writes `size` 4kb chunks of empty data to the temp file pointed by fp.
-    // it then seeks the file back to its start so subsequent calls don't increase the file size.
-    let mut write_to_temp_file = move |size: i32| {
-        for _ in 0..size {
-            fp.write_all(&data).expect("failed to write");
-            fp.sync_all().expect("failed to sync");
-            fp.seek(SeekFrom::Start(0)).expect("failed to seek");
-        }
-    };
-
-    loop {
-        let mut active = previous;
-        if let Ok(value) = switch.try_recv() {
-            active = value;
-        }
-
-        let (new_iterations, sleep) = match active {
-            false => (0, time::Duration::from_secs(1)),
-            true => {
-                write_to_temp_file(batch_size(iterations));
-                (iterations + 1, sleep_time)
-            }
-        };
-
-        iterations = new_iterations;
-        previous = active;
-        thread::sleep(sleep);
     }
 }
 
