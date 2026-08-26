@@ -1,20 +1,16 @@
 use futures_util::StreamExt;
 use log::info;
-use nix::sys::stat;
 use oomhero::http_signals_sender;
-use podman_api::Podman;
-use podman_api::models::LinuxBlockIo;
 use podman_api::models::LinuxCpu;
 use podman_api::models::LinuxMemory;
 use podman_api::models::LinuxResources;
-use podman_api::models::LinuxThrottleDevice;
 use podman_api::models::NamedVolume;
 use podman_api::models::PortMapping;
 use podman_api::opts;
+use podman_api::Podman;
 use serde::Deserialize;
 use std::env;
 use std::fs;
-use std::path::Path;
 use std::time::Duration;
 use uzers::get_current_uid;
 
@@ -37,9 +33,9 @@ struct Stats {
 
 // workload_container_resource_limits  returns the limits to be used in the workload
 // container. We limit the amount of resources that the test workload container can
-// use to make testing easier.
+// use to make testing possible.
 async fn workload_container_resource_limits() -> LinuxResources {
-    let mut limits = LinuxResources {
+    LinuxResources {
         cpu: Some(LinuxCpu {
             period: Some(1_000_000),
             quota: Some(100_000),
@@ -66,77 +62,7 @@ async fn workload_container_resource_limits() -> LinuxResources {
         pids: None,
         rdma: None,
         unified: None,
-    };
-
-    // we only ingest io limits if the controller is enabled. if the user is using
-    // root to run the tests then this is most likely be enabled. systemd does not
-    // delegate the io controller to regular users.
-    if io_controller_is_enabled().await {
-        let (major, minor) = major_and_minor_numbers_for_podman_storage().await;
-        limits.block_io = Some(LinuxBlockIo {
-            throttle_write_iops_device: Some(vec![LinuxThrottleDevice {
-                major: Some(major as i64),
-                minor: Some(minor as i64),
-                rate: Some(100),
-            }]),
-            leaf_weight: None,
-            throttle_read_bps_device: None,
-            throttle_read_iops_device: None,
-            throttle_write_bps_device: None,
-            weight: None,
-            weight_device: None,
-        });
     }
-
-    limits
-}
-
-// major_and_minor_numbers_for_podman_storage finds out the device driver major and minor numbers
-// for the device in which the containers have their temporary storage mounted. The container is
-// then expected to execute io on this device, we can then restrict it.
-async fn major_and_minor_numbers_for_podman_storage() -> (u64, u64) {
-    let client = podman_client();
-    let info = client
-        .info()
-        .await
-        .expect("failed to read podman information");
-
-    let path = info.store.unwrap().graph_root.unwrap();
-    let device = stat::stat(path.as_str()).expect("failed to stat podman storage fs");
-    let major = stat::major(device.st_dev);
-    let minor = stat::minor(device.st_dev);
-
-    // if this device is a partition we need to search for the parent device as we can't impose
-    // io limits directly on the partition.
-    if let Some(parent_data) = major_and_minor_numbers_for_parent(major, minor) {
-        parent_data
-    } else {
-        (major, minor)
-    }
-}
-
-// major_and_minor_numbers_for_parent returns the major and minor numbers for the device who is
-// parent of the device identified by the provided major and minor. this is used to identify
-// what is the disk in which a given partition is, we can't impose io limits in a partition, we
-// need to impose on the whole disk.
-fn major_and_minor_numbers_for_parent(major: u64, minor: u64) -> Option<(u64, u64)> {
-    let partition_file = format!("/sys/dev/block/{}:{}/partition", major, minor);
-    if !Path::new(&partition_file).exists() {
-        return None;
-    }
-
-    let dev_file = format!("/sys/dev/block/{}:{}/../dev", major, minor);
-    let dev = fs::read_to_string(&dev_file).expect("failed to read dev file");
-
-    // format is <major>:<minor>
-    let parts: Vec<&str> = dev.trim().split(':').collect();
-    if parts.len() != 2 {
-        return None;
-    }
-
-    let major: u64 = parts[0].parse().expect("failed to parse major number");
-    let minor: u64 = parts[1].parse().expect("failed to parse minor number");
-    Some((major, minor))
 }
 
 // oomhero_container_resource_limits returns the container limits to be applied to the oomhero
@@ -174,9 +100,7 @@ fn oomhero_container_resource_limits() -> LinuxResources {
 
 // podman_client returns a client pointing to the podman socket. The socket is expected to be under
 // $XDG_RUNTIME_DIR/podman/podman.sock for regular users while for root we use the socket under
-// /run/podman/podman.sock. This test can be ran as either root or regular user but the full
-// coverage can only be achieved with root (systemd does not delegate some cgroup controllers to
-// regular users).
+// /run/podman/podman.sock.
 fn podman_client() -> Podman {
     if get_current_uid() == 0 {
         return Podman::unix("/run/podman/podman.sock");
@@ -184,19 +108,6 @@ fn podman_client() -> Podman {
     let runtime_dir = env::var("XDG_RUNTIME_DIR").expect("failed to read xdg runtime dir");
     let socket_path = format!("{}/podman/podman.sock", runtime_dir);
     Podman::unix(socket_path)
-}
-
-// io_controller_is_enabled returns true if the io controller is enabled. if it is disabled then
-// some of the tests aren't going to run. if you are running the tests as root then you probably
-// have it enabled (systemd does not delegate it to regular users though).
-async fn io_controller_is_enabled() -> bool {
-    let client = podman_client();
-    let info = client
-        .info()
-        .await
-        .expect("failed to read podman information");
-    let controllers = info.host.unwrap().cgroup_controllers.unwrap();
-    controllers.contains(&"io".to_string())
 }
 
 // create_test_pod will create a pod with three containers, one with the pause image, one with the
@@ -374,13 +285,6 @@ async fn test_basic_functionality() {
     // just in case we had a pod running from a failed previous attempt.
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
 
-    if !io_controller_is_enabled().await {
-        info!("*****************************************************************");
-        info!("* IO TESTS WILL BE SKIPPED BECAUSE THE CONTROLLER ISN'T ENABLED *");
-        info!("* YOU MAY WANT TO RUN THIS TEST AS ROOT OR JUST DELEGATE TO CI  *");
-        info!("*****************************************************************");
-    }
-
     // create the pod with the two containers (three if we count the pause container). oomhero
     // is configured to warning on 80% and 90% for both memory usage and cpu pressure. Once
     // this call is back we know that the container is up and running;
@@ -398,6 +302,10 @@ async fn test_basic_functionality() {
     // we follow container logs but we don't bother to join the task.
     _ = tokio::spawn(follow_container_logs("oomhero"));
     _ = tokio::spawn(follow_container_logs("workload"));
+
+    // wait so we start showing the logs for both containers before the tests start. this make
+    // debug easier (like in the case where the workload isn't starting by any reason).
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     // here we issue a request to the workload application asking for it to start to eat cpu.
     // as the container is restricted to 10% of one CPU the pressure will start to grow, we
@@ -425,30 +333,10 @@ async fn test_basic_functionality() {
     wait_for_signals(2).await;
     info!("test workload informs that the memory signal has been received");
 
-    if !io_controller_is_enabled().await {
-        attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
-        return;
-    }
-
-    // we just wait a little bit before starting up the next test, io consumption.
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
-    // we now rinse and repeat but this time assessing memory consumption.
-    info!("informing the test workload to start doing io");
-    ureq::get("http://localhost:9999/io")
-        .call()
-        .expect("failed to ask for io burst");
-
-    info!("waiting for the test workload to receive the third signal (io usage)");
-    wait_for_signals(3).await;
-    info!("test workload informs that the io signal has been received");
-
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
 }
 
-// test_notify_command checks that the notify command feature is working as expected. we start the
-// containers and instruct oomhero to run the /usr/bin/touch command instead of sending the signal.
-// we then wait for the file to appear in the oomhero pod to consider the test as passed.
+// test_notify_command checks that the http notification is working.
 async fn test_notify_command() {
     attempt_test_pod_removal(String::from("oomhero_test_pod")).await;
     attempt_test_volume_removal(String::from("oomhero_config")).await;
@@ -470,6 +358,10 @@ async fn test_notify_command() {
 
     _ = tokio::spawn(follow_container_logs("workload"));
     _ = tokio::spawn(follow_container_logs("oomhero"));
+
+    // wait so we start showing the logs for both containers before the tests start. this make
+    // debug easier (like in the case where the workload isn't starting by any reason).
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
     info!("informing the test workload to start eating memory");
     ureq::get("http://localhost:9999/mem")

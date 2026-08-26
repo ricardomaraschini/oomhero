@@ -9,6 +9,8 @@ jobs:
     name: run tests
     runs-on: ubuntu-latest
     steps:
+    - name: start podman socket
+      run: sudo systemctl start podman.socket
     - name: check out code
       uses: actions/checkout@v7
     - name: run lint
