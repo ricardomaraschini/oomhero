@@ -26,7 +26,6 @@ ureq = { version = "3.3.0", features = ["json"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9.34"
 http = "1.4.1"
-url = "2.5.8"
 
 [dev-dependencies]
 tar = "0.4.46"
